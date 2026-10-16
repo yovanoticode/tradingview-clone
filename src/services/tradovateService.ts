@@ -353,11 +353,14 @@ export class TradovateService {
         this.ws.onmessage = (event) => {
           try {
             const raw = event.data as string;
+            if (raw === 'h') {
+              // Heartbeat keep-alive
+              return;
+            }
             if (raw.startsWith('a[')) {
               const list = JSON.parse(raw.slice(1));
               for (const msg of list) {
                 if (msg.s === 200 && msg.i === authReqId) {
-                  wsActive = true;
                   this.isConnected = true;
                   let activeSymbol = 'MNQZ6';
                   const proxyBase = this.env === 'live' ? '/tradovate-live' : '/tradovate-demo';
@@ -380,6 +383,14 @@ export class TradovateService {
                     .catch(() => {
                       this.ws?.send(`md/subscribequote\n${++this.requestId}\n\n{"symbol":"MNQZ6"}`);
                     });
+                }
+
+                // If md-live rejected the subscription (404), fall back to md-demo automatically
+                if (msg.s === 404 && this.env === 'live') {
+                  this.env = 'demo';
+                  this.saveToStorage();
+                  setTimeout(startWebSocket, 500);
+                  return;
                 }
 
                 if (msg.e === 'md' && msg.d?.quotes) {
@@ -435,7 +446,12 @@ export class TradovateService {
         };
 
         this.ws.onerror = () => { wsActive = false; };
-        this.ws.onclose = () => { wsActive = false; };
+        this.ws.onclose = () => {
+          wsActive = false;
+          if (!isCancelled) {
+            setTimeout(startWebSocket, 2000);
+          }
+        };
       } catch {}
     };
 

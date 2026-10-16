@@ -76,9 +76,14 @@ export const App: React.FC = () => {
       const step = timeframeSeconds[timeframe] || 60;
       const bucketTime = Math.floor(incoming.time / step) * step;
 
+      setCurrentPrice(incoming.close);
       setCandles((prev) => {
         if (prev.length === 0) {
           return [{ ...incoming, time: bucketTime }];
+        }
+        if (prev.length > 1) {
+          const first = prev[0];
+          setPriceChange(((incoming.close - first.open) / first.open) * 100);
         }
         const last = prev[prev.length - 1];
 
@@ -104,15 +109,6 @@ export const App: React.FC = () => {
               volume: incoming.volume || 1,
             },
           ];
-        }
-        return prev;
-      });
-
-      setCurrentPrice(incoming.close);
-      setCandles((prev) => {
-        if (prev.length > 1) {
-          const first = prev[0];
-          setPriceChange(((incoming.close - first.open) / first.open) * 100);
         }
         return prev;
       });
