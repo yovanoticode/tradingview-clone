@@ -2135,12 +2135,37 @@ html, body, #root {
   font-size: 11px;
   display: flex;
   align-items: center;
+  gap: 6px;
   transition: all 0.15s ease;
+  user-select: none;
 }
 
 .timezone-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
+}
+
+.tv-bar-clock {
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #38bdf8;
+  letter-spacing: 0.3px;
+}
+
+.tv-bar-tz-offset {
+  font-size: 11px;
+  font-weight: 500;
+  color: #38bdf8;
+}
+
+.tv-bar-session-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #fb923c;
+  letter-spacing: 0.5px;
+  margin-left: 1px;
 }
 
 .timezone-dropdown {

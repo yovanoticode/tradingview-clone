@@ -24,6 +24,29 @@ export const BottomBar: React.FC<BottomBarProps> = ({
   onSelectTimezone,
 }) => {
   const [showTzMenu, setShowTzMenu] = useState(false);
+  const [timeStr, setTimeStr] = useState('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      try {
+        const now = new Date();
+        const formatted = new Intl.DateTimeFormat('en-GB', {
+          timeZone: timezone,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        }).format(now);
+        setTimeStr(formatted);
+      } catch {
+        const d = new Date();
+        setTimeStr(d.toTimeString().slice(0, 8));
+      }
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [timezone]);
 
   useEffect(() => {
     if (!showTzMenu) return;
@@ -37,7 +60,13 @@ export const BottomBar: React.FC<BottomBarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showTzMenu]);
 
-  const activeTzObj = TIMEZONES.find((t) => t.id === timezone) || TIMEZONES[0];
+  const getOffsetString = (tz: ChartTimezone) => {
+    if (tz === 'UTC') return 'UTC';
+    if (tz === 'America/Bogota') return 'UTC-5';
+    const month = new Date().getUTCMonth();
+    const isEDT = month >= 2 && month <= 10;
+    return isEDT ? 'UTC-4' : 'UTC-5';
+  };
 
   return (
     <footer className="tv-bottom-bar">
@@ -63,14 +92,16 @@ export const BottomBar: React.FC<BottomBarProps> = ({
 
         <div className="bar-divider" />
 
-        {/* Timezone Switcher between Bogota and NY */}
+        {/* Timezone & Live Clock Indicator */}
         <div className="timezone-container">
           <button
             className="bar-item timezone-btn"
             onClick={() => setShowTzMenu(!showTzMenu)}
             title="Cambiar horario entre Bogotá y Nueva York"
           >
-            <span>{activeTzObj.label} ({activeTzObj.offset})</span>
+            <span className="tv-bar-clock">{timeStr}</span>
+            <span className="tv-bar-tz-offset">{getOffsetString(timezone)}</span>
+            <span className="tv-bar-session-tag">HTE</span>
           </button>
 
           {showTzMenu && (
@@ -78,6 +109,17 @@ export const BottomBar: React.FC<BottomBarProps> = ({
               <div className="timezone-dropdown-header">Zona Horaria</div>
               {TIMEZONES.map((tz) => {
                 const isSelected = tz.id === timezone;
+                let currentTzTime = '';
+                try {
+                  currentTzTime = new Intl.DateTimeFormat('en-GB', {
+                    timeZone: tz.id,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false,
+                  }).format(new Date());
+                } catch {}
+
                 return (
                   <div
                     key={tz.id}
@@ -95,7 +137,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                   >
                     <div className="tz-info">
                       <span className="tz-name">{tz.label} ({tz.offset})</span>
-                      <span className="tz-desc">{tz.desc}</span>
+                      <span className="tz-desc">{tz.desc} {currentTzTime ? `• ${currentTzTime}` : ''}</span>
                     </div>
                     {isSelected && <Check size={14} className="tz-check" />}
                   </div>
