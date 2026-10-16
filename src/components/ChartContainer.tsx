@@ -21,6 +21,7 @@ import {
   calculateSMA,
   calculateICTStats,
   calculateICTVisualElements,
+  calculateORB,
   calculateMACD,
   calculateStochastic,
 } from '../services/indicators';
@@ -96,6 +97,11 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     return calculateICTVisualElements(candles, ictSettings, timezone);
   }, [candles, ictSettings, indicators.ictKillzones, timezone]);
 
+  const orbVisualData = useMemo(() => {
+    if (!indicators.orb) return null;
+    return calculateORB(candles, 15, timezone);
+  }, [candles, indicators.orb, timezone]);
+
   const [overlayItems, setOverlayItems] = useState<{
     lines: { id: string; x1: number; y1: number; x2: number; y2: number; color: string; strokeDasharray?: string }[];
     texts: { id: string; x: number; y: number; text: string; color: string }[];
@@ -107,38 +113,42 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     setOverlayTick((t) => (t + 1) % 1000000);
   };
 
-  const ictPriceLinesRef = useRef<any[]>([]);
+  const overlayPriceLinesRef = useRef<any[]>([]);
 
-  // Update right axis badges for ICT levels
+  // Update right axis badges for ICT and ORB levels
   useEffect(() => {
     if (!mainSeriesRef.current) return;
-    ictPriceLinesRef.current.forEach((pl) => {
+    overlayPriceLinesRef.current.forEach((pl) => {
       try {
         mainSeriesRef.current?.removePriceLine(pl);
       } catch {}
     });
-    ictPriceLinesRef.current = [];
+    overlayPriceLinesRef.current = [];
 
-    if (indicators.ictKillzones && ictVisualData) {
-      ictVisualData.axisPriceLines.forEach((item) => {
-        try {
-          const pl = mainSeriesRef.current?.createPriceLine({
-            price: item.price,
-            color: item.color,
-            lineWidth: 1,
-            lineStyle: item.lineStyle,
-            axisLabelVisible: true,
-            title: item.title,
-          });
-          if (pl) ictPriceLinesRef.current.push(pl);
-        } catch {}
-      });
-    }
-  }, [ictVisualData, indicators.ictKillzones]);
+    const allPriceLines = [
+      ...(indicators.ictKillzones && ictVisualData ? ictVisualData.axisPriceLines : []),
+      ...(indicators.orb && orbVisualData ? orbVisualData.axisPriceLines : []),
+    ];
+
+    allPriceLines.forEach((item) => {
+      try {
+        const pl = mainSeriesRef.current?.createPriceLine({
+          price: item.price,
+          color: item.color,
+          lineWidth: 1,
+          lineStyle: item.lineStyle,
+          axisLabelVisible: true,
+          title: item.title,
+        });
+        if (pl) overlayPriceLinesRef.current.push(pl);
+      } catch {}
+    });
+  }, [ictVisualData, orbVisualData, indicators.ictKillzones, indicators.orb]);
 
   // Compute exact pixel coordinates for SVG rays, labels, and day separators
   useEffect(() => {
-    if (!chartRef.current || !mainSeriesRef.current || !indicators.ictKillzones || !ictVisualData) {
+    const hasVisuals = (indicators.ictKillzones && ictVisualData) || (indicators.orb && orbVisualData);
+    if (!chartRef.current || !mainSeriesRef.current || !hasVisuals) {
       setOverlayItems({ lines: [], texts: [], verticals: [] });
       return;
     }
@@ -153,7 +163,17 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     const texts: any[] = [];
     const verticals: any[] = [];
 
-    ictVisualData.rays.forEach((ray) => {
+    const allRays = [
+      ...(indicators.ictKillzones && ictVisualData ? ictVisualData.rays : []),
+      ...(indicators.orb && orbVisualData ? orbVisualData.rays : []),
+    ];
+
+    const allVerticals = [
+      ...(indicators.ictKillzones && ictVisualData ? ictVisualData.verticals : []),
+      ...(indicators.orb && orbVisualData ? orbVisualData.verticals : []),
+    ];
+
+    allRays.forEach((ray) => {
       const x1 = timeScale.timeToCoordinate(ray.startTime as any);
       const x2 = timeScale.timeToCoordinate(ray.endTime as any);
       const y = mainSeries.priceToCoordinate(ray.price);
@@ -188,7 +208,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       }
     });
 
-    ictVisualData.verticals.forEach((v) => {
+    allVerticals.forEach((v) => {
       const x = timeScale.timeToCoordinate(v.time as any);
       if (x !== null && x >= 0 && x <= width) {
         verticals.push({
@@ -204,7 +224,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     });
 
     setOverlayItems({ lines, texts, verticals });
-  }, [overlayTick, ictVisualData, indicators.ictKillzones, candles]);
+  }, [overlayTick, ictVisualData, orbVisualData, indicators.ictKillzones, indicators.orb, candles]);
 
   // 1. Create and manage chart instance
   useEffect(() => {
@@ -900,8 +920,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       {/* Main Lightweight Charts Canvas */}
       <div ref={chartContainerRef} className="chart-canvas" />
 
-      {/* SVG Overlay for ICT Killzones Rays & Day Labels */}
-      {indicators.ictKillzones && (
+      {/* SVG Overlay for ICT Killzones Rays & ORB Levels */}
+      {(indicators.ictKillzones || indicators.orb) && (
         <svg
           style={{
             position: 'absolute',

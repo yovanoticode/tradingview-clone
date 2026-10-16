@@ -30,6 +30,7 @@ const DEFAULT_LAYOUTS: ChartLayout[] = [
       ictKillzones: true,
       macd: false,
       stochastic: false,
+      orb: true,
     },
     ictSettings: DEFAULT_ICT_SETTINGS,
     isFavorite: true,
@@ -51,6 +52,7 @@ const DEFAULT_LAYOUTS: ChartLayout[] = [
       ictKillzones: true,
       macd: true,
       stochastic: false,
+      orb: true,
     },
     ictSettings: DEFAULT_ICT_SETTINGS,
     isFavorite: true,
@@ -72,6 +74,7 @@ const DEFAULT_LAYOUTS: ChartLayout[] = [
       ictKillzones: false,
       macd: true,
       stochastic: true,
+      orb: false,
     },
     ictSettings: DEFAULT_ICT_SETTINGS,
     isFavorite: true,
@@ -93,6 +96,7 @@ const DEFAULT_LAYOUTS: ChartLayout[] = [
       ictKillzones: false,
       macd: true,
       stochastic: false,
+      orb: false,
     },
     ictSettings: DEFAULT_ICT_SETTINGS,
     isFavorite: false,
@@ -147,6 +151,7 @@ export const App: React.FC = () => {
     ictKillzones: true,
     macd: false,
     stochastic: false,
+    orb: true,
   });
 
   const [ictSettings, setIctSettings] = useState<ICTSettings>(() => {

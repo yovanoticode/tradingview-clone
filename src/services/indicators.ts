@@ -1055,3 +1055,193 @@ export function calculateICTVisualElements(
 
   return { rays, verticals, axisPriceLines };
 }
+
+export function calculateORB(
+  candles: Candle[],
+  durationMinutes = 15,
+  timezone: import('../types').ChartTimezone = 'America/New_York'
+): ICTVisualData {
+  if (candles.length === 0) {
+    return { rays: [], verticals: [], axisPriceLines: [] };
+  }
+
+  const rays: ICTHorizontalRay[] = [];
+  const verticals: ICTVerticalMarker[] = [];
+  const axisPriceLines: { price: number; color: string; title: string; lineStyle: number }[] = [];
+
+  const nyOffsetSec = getTimezoneOffsetSec(candles[0]?.time || 0, timezone);
+
+  // Group candles by day
+  const dayIndices: { day: number; startIndex: number; endIndex: number }[] = [];
+  let currentDay = -1;
+
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles[i];
+    const nyDate = new Date((c.time + nyOffsetSec) * 1000);
+    const day = nyDate.getUTCDate();
+
+    if (day !== currentDay) {
+      if (dayIndices.length > 0) {
+        dayIndices[dayIndices.length - 1].endIndex = i - 1;
+      }
+      currentDay = day;
+      dayIndices.push({
+        day,
+        startIndex: i,
+        endIndex: candles.length - 1,
+      });
+    }
+  }
+
+  // Only take the last 5 days to avoid cluttering
+  const recentDays = dayIndices.slice(-5);
+
+  recentDays.forEach((dayInfo, idx) => {
+    let orbStartCandle: Candle | null = null;
+    let orbEndCandle: Candle | null = null;
+    let orbHigh = -Infinity;
+    let orbLow = Infinity;
+    let foundWindow = false;
+
+    const startMin = 570; // 09:30 AM NY
+    const endMin = 570 + durationMinutes; // e.g. 09:45 AM NY
+
+    for (let i = dayInfo.startIndex; i <= dayInfo.endIndex; i++) {
+      const c = candles[i];
+      const nyTime = new Date((c.time + nyOffsetSec) * 1000);
+      const timeOfDayMin = nyTime.getUTCHours() * 60 + nyTime.getUTCMinutes();
+
+      if (timeOfDayMin >= startMin && timeOfDayMin < endMin) {
+        if (!orbStartCandle) orbStartCandle = c;
+        orbHigh = Math.max(orbHigh, c.high);
+        orbLow = Math.min(orbLow, c.low);
+        foundWindow = true;
+      }
+
+      if (timeOfDayMin >= endMin && !orbEndCandle) {
+        orbEndCandle = c;
+      }
+    }
+
+    // Fallback for higher timeframes (e.g. 30m, 1h) if no exact candle fell into [570, 585)
+    if (!foundWindow) {
+      for (let i = dayInfo.startIndex; i <= dayInfo.endIndex; i++) {
+        const c = candles[i];
+        const nyTime = new Date((c.time + nyOffsetSec) * 1000);
+        const timeOfDayMin = nyTime.getUTCHours() * 60 + nyTime.getUTCMinutes();
+        if (timeOfDayMin >= 540 && timeOfDayMin <= 600) {
+          orbStartCandle = c;
+          orbEndCandle = candles[Math.min(i + 1, dayInfo.endIndex)];
+          orbHigh = c.high;
+          orbLow = c.low;
+          foundWindow = true;
+          break;
+        }
+      }
+    }
+
+    if (!foundWindow || orbHigh <= 0 || orbLow === Infinity) return;
+
+    if (!orbEndCandle) {
+      orbEndCandle = candles[dayInfo.endIndex];
+    }
+
+    const lastCandle = candles[dayInfo.endIndex];
+    const range = orbHigh - orbLow;
+    const mid = (orbHigh + orbLow) / 2;
+    const targetUp = orbHigh + range;
+    const targetDown = orbLow - range;
+
+    // Vertical markers for ORB open and close
+    if (orbStartCandle) {
+      verticals.push({
+        id: `orb_v_start_${dayInfo.day}_${idx}`,
+        time: orbStartCandle.time,
+        color: '#f59e0b',
+        label: 'ORB 9:30',
+        lineStyle: 'dotted',
+      });
+    }
+
+    if (orbEndCandle && orbEndCandle.time !== orbStartCandle?.time) {
+      verticals.push({
+        id: `orb_v_end_${dayInfo.day}_${idx}`,
+        time: orbEndCandle.time,
+        color: '#f59e0b',
+        label: `ORB ${durationMinutes}m`,
+        lineStyle: 'dotted',
+      });
+    }
+
+    const startTime = orbEndCandle.time;
+    const endTime = lastCandle.time;
+
+    // Projection Rays (from 09:45 to end of day)
+    rays.push({
+      id: `orb_h_${dayInfo.day}_${idx}`,
+      price: orbHigh,
+      startTime,
+      endTime,
+      color: '#f59e0b',
+      label: 'ORB High',
+      lineStyle: 'solid',
+      isMitigated: false,
+    });
+
+    rays.push({
+      id: `orb_l_${dayInfo.day}_${idx}`,
+      price: orbLow,
+      startTime,
+      endTime,
+      color: '#f59e0b',
+      label: 'ORB Low',
+      lineStyle: 'solid',
+      isMitigated: false,
+    });
+
+    rays.push({
+      id: `orb_m_${dayInfo.day}_${idx}`,
+      price: mid,
+      startTime,
+      endTime,
+      color: '#06b6d4',
+      label: 'ORB 50%',
+      lineStyle: 'dotted',
+      isMitigated: false,
+    });
+
+    rays.push({
+      id: `orb_t_up_${dayInfo.day}_${idx}`,
+      price: targetUp,
+      startTime,
+      endTime,
+      color: '#10b981',
+      label: 'Target +1.0x',
+      lineStyle: 'dashed',
+      isMitigated: false,
+    });
+
+    rays.push({
+      id: `orb_t_dn_${dayInfo.day}_${idx}`,
+      price: targetDown,
+      startTime,
+      endTime,
+      color: '#ef4444',
+      label: 'Target -1.0x',
+      lineStyle: 'dashed',
+      isMitigated: false,
+    });
+
+    // If it's the last day, add right axis price lines
+    if (idx === recentDays.length - 1) {
+      axisPriceLines.push({ price: targetUp, color: '#10b981', title: 'ORB +1.0x', lineStyle: 2 });
+      axisPriceLines.push({ price: orbHigh, color: '#f59e0b', title: 'ORB High', lineStyle: 0 });
+      axisPriceLines.push({ price: mid, color: '#06b6d4', title: 'ORB Mid', lineStyle: 1 });
+      axisPriceLines.push({ price: orbLow, color: '#f59e0b', title: 'ORB Low', lineStyle: 0 });
+      axisPriceLines.push({ price: targetDown, color: '#ef4444', title: 'ORB -1.0x', lineStyle: 2 });
+    }
+  });
+
+  return { rays, verticals, axisPriceLines };
+}
+

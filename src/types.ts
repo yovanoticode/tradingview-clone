@@ -52,6 +52,7 @@ export interface IndicatorConfig {
   ictKillzones: boolean;
   macd: boolean;
   stochastic: boolean;
+  orb: boolean;
 }
 
 export interface ICTKillzoneConfig {

@@ -542,6 +542,17 @@ export const Header: React.FC<HeaderProps> = ({
                 <Settings size={14} />
               </button>
             </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+              <label className="indicator-toggle" style={{ margin: 0, flex: 1 }}>
+                <input
+                  type="checkbox"
+                  checked={indicators.orb}
+                  onChange={() => onToggleIndicator('orb')}
+                />
+                <span style={{ fontWeight: 600, color: '#f59e0b' }}>Opening Range Breakout (ORB 15m)</span>
+              </label>
+            </div>
           </div>
         </div>
       )}
