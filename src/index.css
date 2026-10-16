@@ -1802,4 +1802,227 @@ html, body, #root {
   font-style: italic;
 }
 
+/* ----------------------------------------
+   TradingView Layout Manager Dropdown
+---------------------------------------- */
+.layout-manager-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.layout-btn {
+  background: var(--tv-bg-sub);
+  border: 1px solid var(--tv-border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.layout-cloud-icon {
+  color: var(--tv-text-muted);
+}
+
+.layout-save-check {
+  color: #22c55e;
+}
+
+.layout-active-name {
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.layout-chevron {
+  color: var(--tv-text-muted);
+  transition: transform 0.2s ease;
+}
+
+.layout-chevron.open {
+  transform: rotate(180deg);
+}
+
+.layout-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 290px;
+  background: #1e222d;
+  border: 1px solid #2a2e39;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+  padding: 6px 0;
+  font-size: 13px;
+  user-select: none;
+}
+
+.layout-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  color: #d1d4dc;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.layout-menu-item:hover {
+  background: #2a2e39;
+  color: #ffffff;
+}
+
+.layout-shortcut-badge {
+  font-size: 11px;
+  color: #787b86;
+  font-family: inherit;
+}
+
+.layout-menu-switch {
+  cursor: pointer;
+}
+
+/* Switch Toggle Component */
+.tv-switch {
+  width: 32px;
+  height: 18px;
+  border-radius: 10px;
+  background: #434651;
+  position: relative;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.tv-switch.on {
+  background: #2962ff;
+}
+
+.tv-switch-handle {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.tv-switch.on .tv-switch-handle {
+  transform: translateX(14px);
+}
+
+.layout-menu-divider {
+  height: 1px;
+  background: #2a2e39;
+  margin: 6px 0;
+}
+
+.layout-section-header {
+  padding: 8px 16px 4px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #787b86;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.layout-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 3px 8px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.layout-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: transparent;
+}
+
+.layout-row:hover {
+  background: #2a2e39;
+}
+
+.layout-row.active {
+  background: #ffffff;
+  color: #131722;
+}
+
+.layout-row.active .layout-title {
+  color: #131722;
+  font-weight: 700;
+}
+
+.layout-row.active .layout-meta {
+  color: #4b5563;
+}
+
+.layout-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #d1d4dc;
+}
+
+.layout-meta {
+  font-size: 11px;
+  color: #787b86;
+  margin-top: 1px;
+}
+
+.layout-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.layout-star-btn,
+.layout-delete-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #787b86;
+  transition: color 0.15s;
+}
+
+.layout-row.active .layout-star-btn {
+  color: #787b86;
+}
+
+.layout-star-btn:hover {
+  color: #fbc02d;
+}
+
+.layout-delete-btn:hover {
+  color: #ef4444;
+}
+
+.layout-footer-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 500;
+}
+
+.layout-dot-hint {
+  color: #787b86;
+  font-size: 16px;
+}
+
+
 

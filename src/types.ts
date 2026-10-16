@@ -116,3 +116,16 @@ export interface OrderBookEntry {
   amount: number;
   total: number;
 }
+
+export interface ChartLayout {
+  id: string;
+  name: string;
+  symbol: string;
+  timeframe: Timeframe;
+  chartType: ChartType;
+  indicators: IndicatorConfig;
+  ictSettings: ICTSettings;
+  isFavorite?: boolean;
+  lastModified: number;
+}
+

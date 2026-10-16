@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Search, 
   CandlestickChart, 
@@ -10,9 +10,14 @@ import {
   Maximize2, 
   X,
   Settings,
-  Sliders
+  Sliders,
+  Cloud,
+  ChevronDown,
+  Check,
+  Star,
+  Trash2
 } from 'lucide-react';
-import type { ChartType, IndicatorConfig, Timeframe, ICTSettings } from '../types';
+import type { ChartType, IndicatorConfig, Timeframe, ICTSettings, ChartLayout } from '../types';
 
 interface HeaderProps {
   symbol: string;
@@ -28,6 +33,20 @@ interface HeaderProps {
   currentPrice: number;
   priceChange: number;
   onTakeSnapshot: () => void;
+  // Layout Management Props
+  layouts: ChartLayout[];
+  activeLayoutId: string;
+  autoSave: boolean;
+  isSavedRecently: boolean;
+  onSaveLayout: () => void;
+  onLoadLayout: (id: string) => void;
+  onCreateNewLayout: (name: string) => void;
+  onDuplicateLayout: (name: string) => void;
+  onRenameLayout: (id: string, name: string) => void;
+  onDeleteLayout: (id: string) => void;
+  onToggleFavorite: (id: string) => void;
+  onToggleAutoSave: () => void;
+  onDownloadCSV: () => void;
 }
 
 const AVAILABLE_SYMBOLS = [
@@ -65,12 +84,57 @@ export const Header: React.FC<HeaderProps> = ({
   currentPrice,
   priceChange,
   onTakeSnapshot,
+  layouts,
+  activeLayoutId,
+  autoSave,
+  isSavedRecently,
+  onSaveLayout,
+  onLoadLayout,
+  onCreateNewLayout,
+  onDuplicateLayout,
+  onRenameLayout,
+  onDeleteLayout,
+  onToggleFavorite,
+  onToggleAutoSave,
+  onDownloadCSV,
 }) => {
   const [showSearch, setShowSearch] = useState(false);
   const [showIndicators, setShowIndicators] = useState(false);
   const [showIctModal, setShowIctModal] = useState(false);
   const [ictTab, setIctTab] = useState<'kz' | 'dwm' | 'opens'>('kz');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Layout Dropdown & Modal State
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+  const [shareLayout, setShareLayout] = useState(false);
+  const [layoutModalMode, setLayoutModalMode] = useState<'create' | 'copy' | 'rename' | null>(null);
+  const [layoutInputName, setLayoutInputName] = useState('');
+
+  const activeLayout = layouts.find((l) => l.id === activeLayoutId) || layouts[0];
+
+  useEffect(() => {
+    if (!showLayoutMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.layout-manager-container')) {
+        setShowLayoutMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showLayoutMenu]);
+
+  const handleConfirmModal = () => {
+    if (!layoutInputName.trim()) return;
+    if (layoutModalMode === 'create') {
+      onCreateNewLayout(layoutInputName);
+    } else if (layoutModalMode === 'copy') {
+      onDuplicateLayout(layoutInputName);
+    } else if (layoutModalMode === 'rename') {
+      onRenameLayout(activeLayoutId, layoutInputName);
+    }
+    setLayoutModalMode(null);
+  };
 
   const filteredSymbols = AVAILABLE_SYMBOLS.filter(
     (s) => s.symbol.toLowerCase().includes(searchQuery.toLowerCase()) || s.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -169,6 +233,148 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="header-right">
+        {/* Layout Manager Dropdown */}
+        <div className="layout-manager-container">
+          <button
+            className={`tv-btn layout-btn ${showLayoutMenu ? 'active' : ''}`}
+            onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+            title="Gestor de diseños y plantillas"
+          >
+            {isSavedRecently ? (
+              <Check size={16} className="layout-save-check" />
+            ) : (
+              <Cloud size={16} className="layout-cloud-icon" />
+            )}
+            <span className="layout-active-name">{activeLayout?.name || 'ICT'}</span>
+            <ChevronDown size={13} className={`layout-chevron ${showLayoutMenu ? 'open' : ''}`} />
+          </button>
+
+          {showLayoutMenu && (
+            <div className="layout-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+              <div
+                className="layout-menu-item"
+                onClick={() => {
+                  onSaveLayout();
+                  setShowLayoutMenu(false);
+                }}
+              >
+                <span>Guardar diseño</span>
+                <span className="layout-shortcut-badge">Ctrl + S</span>
+              </div>
+
+              <div className="layout-menu-item layout-menu-switch" onClick={onToggleAutoSave}>
+                <span>Autoguardado</span>
+                <div className={`tv-switch ${autoSave ? 'on' : 'off'}`}>
+                  <div className="tv-switch-handle" />
+                </div>
+              </div>
+
+              <div className="layout-menu-item layout-menu-switch" onClick={() => setShareLayout(!shareLayout)}>
+                <span>Compartir diseño</span>
+                <div className={`tv-switch ${shareLayout ? 'on' : 'off'}`}>
+                  <div className="tv-switch-handle" />
+                </div>
+              </div>
+
+              <div
+                className="layout-menu-item"
+                onClick={() => {
+                  setLayoutInputName((activeLayout?.name || 'Diseño') + ' (copia)');
+                  setLayoutModalMode('copy');
+                  setShowLayoutMenu(false);
+                }}
+              >
+                <span>Hacer una copia...</span>
+              </div>
+
+              <div
+                className="layout-menu-item"
+                onClick={() => {
+                  setLayoutInputName(activeLayout?.name || '');
+                  setLayoutModalMode('rename');
+                  setShowLayoutMenu(false);
+                }}
+              >
+                <span>Renombrar...</span>
+              </div>
+
+              <div
+                className="layout-menu-item"
+                onClick={() => {
+                  onDownloadCSV();
+                  setShowLayoutMenu(false);
+                }}
+              >
+                <span>Descargar datos del gráfico...</span>
+              </div>
+
+              <div className="layout-menu-divider" />
+
+              <div
+                className="layout-menu-item"
+                onClick={() => {
+                  setLayoutInputName('Nuevo Diseño');
+                  setLayoutModalMode('create');
+                  setShowLayoutMenu(false);
+                }}
+              >
+                <span>Crear nuevo diseño...</span>
+              </div>
+
+              <div className="layout-section-header">USADOS CON FRECUENCIA</div>
+
+              <div className="layout-items-list">
+                {layouts.map((l) => {
+                  const isActive = l.id === activeLayoutId;
+                  return (
+                    <div
+                      key={l.id}
+                      className={`layout-row ${isActive ? 'active' : ''}`}
+                      onClick={() => {
+                        onLoadLayout(l.id);
+                        setShowLayoutMenu(false);
+                      }}
+                    >
+                      <div className="layout-info">
+                        <div className="layout-title">{l.name}</div>
+                        <div className="layout-meta">{l.symbol}, {l.timeframe}</div>
+                      </div>
+                      <div className="layout-row-actions" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className={`layout-star-btn ${l.isFavorite ? 'favorite' : ''}`}
+                          onClick={() => onToggleFavorite(l.id)}
+                          title={l.isFavorite ? 'Quitar de favoritos' : 'Marcar favorito'}
+                        >
+                          <Star size={15} fill={l.isFavorite ? '#fbc02d' : 'none'} color={l.isFavorite ? '#fbc02d' : 'currentColor'} />
+                        </button>
+                        {layouts.length > 1 && (
+                          <button
+                            className="layout-delete-btn"
+                            onClick={() => onDeleteLayout(l.id)}
+                            title="Eliminar diseño"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="layout-menu-divider" />
+
+              <div
+                className="layout-menu-item layout-footer-item"
+                onClick={() => setShowLayoutMenu(false)}
+              >
+                <span>Abrir diseño...</span>
+                <span className="layout-dot-hint">•</span>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Live WS Status */}
         <div className="live-pill" title="Conexión en tiempo real activa">
           <span className="live-dot" />
@@ -709,6 +915,67 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => setShowIctModal(false)}
               >
                 Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Layout Name / Rename / Copy Modal */}
+      {layoutModalMode !== null && (
+        <div className="modal-overlay" onClick={() => setLayoutModalMode(null)}>
+          <div className="search-modal layout-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px', padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <span style={{ fontWeight: 700, fontSize: '15px', color: '#fff' }}>
+                {layoutModalMode === 'create' && 'Crear nuevo diseño'}
+                {layoutModalMode === 'copy' && 'Hacer una copia del diseño'}
+                {layoutModalMode === 'rename' && 'Renombrar diseño'}
+              </span>
+              <button className="close-btn" onClick={() => setLayoutModalMode(null)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+              <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 500 }}>
+                Nombre del diseño:
+              </label>
+              <input
+                type="text"
+                value={layoutInputName}
+                onChange={(e) => setLayoutInputName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleConfirmModal();
+                  }
+                }}
+                autoFocus
+                style={{
+                  background: 'var(--tv-bg-main)',
+                  border: '1px solid var(--tv-border)',
+                  color: '#fff',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                className="tv-btn"
+                style={{ padding: '6px 14px', fontSize: '13px' }}
+                onClick={() => setLayoutModalMode(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="tv-btn primary-btn"
+                style={{ padding: '6px 16px', fontSize: '13px', background: 'var(--tv-accent)', color: '#fff' }}
+                onClick={handleConfirmModal}
+              >
+                Guardar
               </button>
             </div>
           </div>

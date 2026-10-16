@@ -6,18 +6,138 @@ import { RightSidebar } from './components/RightSidebar';
 import { BottomBar } from './components/BottomBar';
 import { TradovatePanel } from './components/TradovatePanel';
 import { PineEditor } from './components/PineEditor';
-import type { Candle, ChartType, DrawingTool, IndicatorConfig, Timeframe, ICTSettings } from './types';
+import type { Candle, ChartType, DrawingTool, IndicatorConfig, Timeframe, ICTSettings, ChartLayout } from './types';
 import type { PinePlot } from './services/pineEngine';
 import { fetchHistoricalKlines, subscribeToKlines } from './services/binanceService';
 import { TradovateService, fetchRealMNQKlines } from './services/tradovateService';
 import { calculateICTPlots, DEFAULT_ICT_SETTINGS } from './services/indicators';
 import './index.css';
 
+const DEFAULT_LAYOUTS: ChartLayout[] = [
+  {
+    id: 'layout-ict',
+    name: 'ICT',
+    symbol: 'MNQ',
+    timeframe: '15m',
+    chartType: 'candlestick',
+    indicators: {
+      volume: true,
+      sma20: false,
+      ema50: false,
+      ema200: false,
+      bollinger: false,
+      rsi: false,
+      ictKillzones: true,
+      macd: false,
+      stochastic: false,
+    },
+    ictSettings: DEFAULT_ICT_SETTINGS,
+    isFavorite: true,
+    lastModified: Date.now(),
+  },
+  {
+    id: 'layout-mes',
+    name: 'MES',
+    symbol: 'MNQ',
+    timeframe: '1m',
+    chartType: 'candlestick',
+    indicators: {
+      volume: true,
+      sma20: true,
+      ema50: true,
+      ema200: false,
+      bollinger: false,
+      rsi: false,
+      ictKillzones: true,
+      macd: true,
+      stochastic: false,
+    },
+    ictSettings: DEFAULT_ICT_SETTINGS,
+    isFavorite: true,
+    lastModified: Date.now() - 3600000,
+  },
+  {
+    id: 'layout-btc',
+    name: 'BTC',
+    symbol: 'BTCUSDT',
+    timeframe: '1d',
+    chartType: 'candlestick',
+    indicators: {
+      volume: true,
+      sma20: true,
+      ema50: true,
+      ema200: true,
+      bollinger: true,
+      rsi: true,
+      ictKillzones: false,
+      macd: true,
+      stochastic: true,
+    },
+    ictSettings: DEFAULT_ICT_SETTINGS,
+    isFavorite: true,
+    lastModified: Date.now() - 7200000,
+  },
+  {
+    id: 'layout-acciones',
+    name: 'ACCIONES',
+    symbol: 'AAPL',
+    timeframe: '1d',
+    chartType: 'candlestick',
+    indicators: {
+      volume: true,
+      sma20: true,
+      ema50: false,
+      ema200: false,
+      bollinger: false,
+      rsi: true,
+      ictKillzones: false,
+      macd: true,
+      stochastic: false,
+    },
+    ictSettings: DEFAULT_ICT_SETTINGS,
+    isFavorite: false,
+    lastModified: Date.now() - 10800000,
+  },
+];
+
 export const App: React.FC = () => {
-  const [symbol, setSymbol] = useState('MNQ');
-  const [timeframe, setTimeframe] = useState<Timeframe>('1m');
-  const [chartType, setChartType] = useState<ChartType>('candlestick');
-  const [indicators, setIndicators] = useState<IndicatorConfig>({
+  // Layout Management State
+  const [layouts, setLayouts] = useState<ChartLayout[]>(() => {
+    try {
+      const saved = localStorage.getItem('tv_chart_layouts');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_LAYOUTS;
+  });
+
+  const [activeLayoutId, setActiveLayoutId] = useState<string>(() => {
+    try {
+      const savedId = localStorage.getItem('tv_active_layout_id');
+      if (savedId) return savedId;
+    } catch {}
+    return 'layout-ict';
+  });
+
+  const [autoSave, setAutoSave] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('tv_autosave');
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const [isSavedRecently, setIsSavedRecently] = useState(false);
+
+  const initialLayout = layouts.find((l) => l.id === activeLayoutId) || layouts[0] || DEFAULT_LAYOUTS[0];
+
+  const [symbol, setSymbol] = useState(initialLayout.symbol || 'MNQ');
+  const [timeframe, setTimeframe] = useState<Timeframe>(initialLayout.timeframe || '1m');
+  const [chartType, setChartType] = useState<ChartType>(initialLayout.chartType || 'candlestick');
+  const [indicators, setIndicators] = useState<IndicatorConfig>(initialLayout.indicators || {
     volume: true,
     sma20: true,
     ema50: false,
@@ -30,6 +150,7 @@ export const App: React.FC = () => {
   });
 
   const [ictSettings, setIctSettings] = useState<ICTSettings>(() => {
+    if (initialLayout.ictSettings) return initialLayout.ictSettings;
     try {
       const saved = localStorage.getItem('ict_settings');
       return saved ? { ...DEFAULT_ICT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_ICT_SETTINGS;
@@ -162,6 +283,177 @@ export const App: React.FC = () => {
     setIndicators((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // Layout Actions
+  const handleSaveLayout = () => {
+    setLayouts((prev) => {
+      const updated = prev.map((l) =>
+        l.id === activeLayoutId
+          ? {
+              ...l,
+              symbol,
+              timeframe,
+              chartType,
+              indicators,
+              ictSettings,
+              lastModified: Date.now(),
+            }
+          : l
+      );
+      localStorage.setItem('tv_chart_layouts', JSON.stringify(updated));
+      return updated;
+    });
+    setIsSavedRecently(true);
+    setTimeout(() => setIsSavedRecently(false), 1800);
+  };
+
+  const handleLoadLayout = (id: string) => {
+    const target = layouts.find((l) => l.id === id);
+    if (!target) return;
+    setActiveLayoutId(target.id);
+    localStorage.setItem('tv_active_layout_id', target.id);
+    setSymbol(target.symbol);
+    setTimeframe(target.timeframe);
+    setChartType(target.chartType);
+    setIndicators(target.indicators);
+    if (target.ictSettings) {
+      setIctSettings(target.ictSettings);
+      localStorage.setItem('ict_settings', JSON.stringify(target.ictSettings));
+    }
+  };
+
+  const handleCreateNewLayout = (name: string) => {
+    const newLayout: ChartLayout = {
+      id: 'layout-' + Date.now(),
+      name: name.trim() || 'Nuevo Diseño',
+      symbol,
+      timeframe,
+      chartType,
+      indicators,
+      ictSettings,
+      isFavorite: false,
+      lastModified: Date.now(),
+    };
+    const updated = [...layouts, newLayout];
+    setLayouts(updated);
+    setActiveLayoutId(newLayout.id);
+    localStorage.setItem('tv_chart_layouts', JSON.stringify(updated));
+    localStorage.setItem('tv_active_layout_id', newLayout.id);
+    setIsSavedRecently(true);
+    setTimeout(() => setIsSavedRecently(false), 1800);
+  };
+
+  const handleDuplicateLayout = (name: string) => {
+    const activeLayout = layouts.find((l) => l.id === activeLayoutId);
+    const newLayout: ChartLayout = {
+      id: 'layout-' + Date.now(),
+      name: name.trim() || `${activeLayout?.name || 'Diseño'} (copia)`,
+      symbol,
+      timeframe,
+      chartType,
+      indicators,
+      ictSettings,
+      isFavorite: false,
+      lastModified: Date.now(),
+    };
+    const updated = [...layouts, newLayout];
+    setLayouts(updated);
+    setActiveLayoutId(newLayout.id);
+    localStorage.setItem('tv_chart_layouts', JSON.stringify(updated));
+    localStorage.setItem('tv_active_layout_id', newLayout.id);
+    setIsSavedRecently(true);
+    setTimeout(() => setIsSavedRecently(false), 1800);
+  };
+
+  const handleRenameLayout = (id: string, newName: string) => {
+    if (!newName.trim()) return;
+    setLayouts((prev) => {
+      const updated = prev.map((l) => (l.id === id ? { ...l, name: newName.trim() } : l));
+      localStorage.setItem('tv_chart_layouts', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleDeleteLayout = (id: string) => {
+    if (layouts.length <= 1) return;
+    const updated = layouts.filter((l) => l.id !== id);
+    setLayouts(updated);
+    localStorage.setItem('tv_chart_layouts', JSON.stringify(updated));
+    if (activeLayoutId === id) {
+      handleLoadLayout(updated[0].id);
+    }
+  };
+
+  const handleToggleFavorite = (id: string) => {
+    setLayouts((prev) => {
+      const updated = prev.map((l) => (l.id === id ? { ...l, isFavorite: !l.isFavorite } : l));
+      localStorage.setItem('tv_chart_layouts', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleToggleAutoSave = () => {
+    setAutoSave((prev) => {
+      const next = !prev;
+      localStorage.setItem('tv_autosave', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleDownloadCSV = () => {
+    if (!candles || candles.length === 0) return;
+    const headerRow = 'Timestamp,DateTime,Open,High,Low,Close,Volume\n';
+    const rows = candles
+      .map((c) => {
+        const d = new Date(c.time * 1000).toISOString();
+        return `${c.time},${d},${c.open},${c.high},${c.low},${c.close},${c.volume || 0}`;
+      })
+      .join('\n');
+    const blob = new Blob([headerRow + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${symbol}_${timeframe}_data.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Keyboard shortcut Ctrl+S / Cmd+S
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveLayout();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [symbol, timeframe, chartType, indicators, ictSettings, activeLayoutId]);
+
+  // Auto-save sync
+  useEffect(() => {
+    if (!autoSave) return;
+    const timeout = setTimeout(() => {
+      setLayouts((prev) => {
+        const updated = prev.map((l) =>
+          l.id === activeLayoutId
+            ? {
+                ...l,
+                symbol,
+                timeframe,
+                chartType,
+                indicators,
+                ictSettings,
+                lastModified: Date.now(),
+              }
+            : l
+        );
+        localStorage.setItem('tv_chart_layouts', JSON.stringify(updated));
+        return updated;
+      });
+    }, 1000);
+    return () => clearTimeout(timeout);
+  }, [symbol, timeframe, chartType, indicators, ictSettings, activeLayoutId, autoSave]);
+
   const handleTakeSnapshot = () => {
     const canvas = document.querySelector('.chart-canvas canvas') as HTMLCanvasElement;
     if (canvas) {
@@ -190,6 +482,19 @@ export const App: React.FC = () => {
         currentPrice={currentPrice}
         priceChange={priceChange}
         onTakeSnapshot={handleTakeSnapshot}
+        layouts={layouts}
+        activeLayoutId={activeLayoutId}
+        autoSave={autoSave}
+        isSavedRecently={isSavedRecently}
+        onSaveLayout={handleSaveLayout}
+        onLoadLayout={handleLoadLayout}
+        onCreateNewLayout={handleCreateNewLayout}
+        onDuplicateLayout={handleDuplicateLayout}
+        onRenameLayout={handleRenameLayout}
+        onDeleteLayout={handleDeleteLayout}
+        onToggleFavorite={handleToggleFavorite}
+        onToggleAutoSave={handleToggleAutoSave}
+        onDownloadCSV={handleDownloadCSV}
       />
 
       {/* Tradovate / CME Trading Panel */}
