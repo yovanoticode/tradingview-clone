@@ -14,7 +14,7 @@ import type {
   ISeriesApi,
   Time,
 } from 'lightweight-charts';
-import type { Candle, ChartType, DrawingTool, IndicatorConfig, ICTSettings } from '../types';
+import type { Candle, ChartType, DrawingTool, IndicatorConfig, ICTSettings, ChartTimezone } from '../types';
 import {
   calculateBollingerBands,
   calculateEMA,
@@ -36,6 +36,7 @@ interface ChartContainerProps {
   clearTrigger: number;
   customPlots?: PinePlot[];
   ictSettings?: ICTSettings;
+  timezone?: ChartTimezone;
 }
 
 export const ChartContainer: React.FC<ChartContainerProps> = ({
@@ -47,6 +48,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   clearTrigger,
   customPlots = [],
   ictSettings,
+  timezone = 'America/Bogota',
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -86,13 +88,13 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
   const ictStats = useMemo(() => {
     if (!indicators.ictKillzones || !ictSettings?.showDataTable) return null;
-    return calculateICTStats(candles, ictSettings);
-  }, [candles, ictSettings, indicators.ictKillzones]);
+    return calculateICTStats(candles, ictSettings, timezone);
+  }, [candles, ictSettings, indicators.ictKillzones, timezone]);
 
   const ictVisualData = useMemo(() => {
     if (!indicators.ictKillzones) return null;
-    return calculateICTVisualElements(candles, ictSettings);
-  }, [candles, ictSettings, indicators.ictKillzones]);
+    return calculateICTVisualElements(candles, ictSettings, timezone);
+  }, [candles, ictSettings, indicators.ictKillzones, timezone]);
 
   const [overlayItems, setOverlayItems] = useState<{
     lines: { id: string; x1: number; y1: number; x2: number; y2: number; color: string; strokeDasharray?: string }[];
@@ -247,10 +249,50 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           bottom: 0.2,
         },
       },
+      localization: {
+        timeFormatter: (t: any) => {
+          const sec = typeof t === 'number' ? t : typeof t === 'string' ? new Date(t).getTime() / 1000 : (t?.timestamp || 0);
+          if (!sec) return '';
+          return new Intl.DateTimeFormat('es-CO', {
+            timeZone: timezone,
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          }).format(new Date(sec * 1000));
+        },
+        dateFormat: 'yyyy-MM-dd',
+      },
       timeScale: {
         borderColor: '#2a2e39',
         timeVisible: true,
         secondsVisible: false,
+        tickMarkFormatter: (t: any, markType: any) => {
+          const sec = typeof t === 'number' ? t : typeof t === 'string' ? new Date(t).getTime() / 1000 : (t?.timestamp || 0);
+          if (!sec) return null;
+          const date = new Date(sec * 1000);
+          switch (markType) {
+            case 0:
+              return new Intl.DateTimeFormat('es-CO', { timeZone: timezone, year: 'numeric' }).format(date);
+            case 1:
+              return new Intl.DateTimeFormat('es-CO', { timeZone: timezone, month: 'short' }).format(date);
+            case 2:
+              return new Intl.DateTimeFormat('es-CO', { timeZone: timezone, day: 'numeric' }).format(date);
+            case 3:
+            case 4:
+              return new Intl.DateTimeFormat('es-CO', {
+                timeZone: timezone,
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              }).format(date);
+            default:
+              return null;
+          }
+        },
       },
     });
 
@@ -326,6 +368,55 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       chartRef.current = null;
     };
   }, []);
+
+  // Update time formatters when timezone changes
+  useEffect(() => {
+    if (!chartRef.current) return;
+    chartRef.current.applyOptions({
+      localization: {
+        timeFormatter: (t: any) => {
+          const sec = typeof t === 'number' ? t : typeof t === 'string' ? new Date(t).getTime() / 1000 : (t?.timestamp || 0);
+          if (!sec) return '';
+          return new Intl.DateTimeFormat('es-CO', {
+            timeZone: timezone,
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          }).format(new Date(sec * 1000));
+        },
+      },
+      timeScale: {
+        tickMarkFormatter: (t: any, markType: any) => {
+          const sec = typeof t === 'number' ? t : typeof t === 'string' ? new Date(t).getTime() / 1000 : (t?.timestamp || 0);
+          if (!sec) return null;
+          const date = new Date(sec * 1000);
+          switch (markType) {
+            case 0:
+              return new Intl.DateTimeFormat('es-CO', { timeZone: timezone, year: 'numeric' }).format(date);
+            case 1:
+              return new Intl.DateTimeFormat('es-CO', { timeZone: timezone, month: 'short' }).format(date);
+            case 2:
+              return new Intl.DateTimeFormat('es-CO', { timeZone: timezone, day: 'numeric' }).format(date);
+            case 3:
+            case 4:
+              return new Intl.DateTimeFormat('es-CO', {
+                timeZone: timezone,
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              }).format(date);
+            default:
+              return null;
+          }
+        },
+      },
+    });
+    triggerOverlayUpdate();
+  }, [timezone]);
 
   // 2. Manage Main Series type changes
   useEffect(() => {

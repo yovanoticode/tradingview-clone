@@ -11,6 +11,8 @@ export type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
 
 export type ChartType = 'candlestick' | 'line' | 'area' | 'bar';
 
+export type ChartTimezone = 'America/Bogota' | 'America/New_York' | 'UTC';
+
 export type DrawingTool = 'crosshair' | 'trendline' | 'horizontal' | 'measure' | 'none';
 
 export interface IndicatorConfig {

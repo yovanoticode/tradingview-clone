@@ -6,7 +6,7 @@ import { RightSidebar } from './components/RightSidebar';
 import { BottomBar } from './components/BottomBar';
 import { TradovatePanel } from './components/TradovatePanel';
 import { PineEditor } from './components/PineEditor';
-import type { Candle, ChartType, DrawingTool, IndicatorConfig, Timeframe, ICTSettings, ChartLayout } from './types';
+import type { Candle, ChartType, DrawingTool, IndicatorConfig, Timeframe, ICTSettings, ChartLayout, ChartTimezone } from './types';
 import type { PinePlot } from './services/pineEngine';
 import { fetchHistoricalKlines, subscribeToKlines } from './services/binanceService';
 import { TradovateService, fetchRealMNQKlines } from './services/tradovateService';
@@ -171,6 +171,20 @@ export const App: React.FC = () => {
   const [magnetMode, setMagnetMode] = useState(false);
   const [clearTrigger, setClearTrigger] = useState(0);
   const [activeRange, setActiveRange] = useState('1D');
+  const [timezone, setTimezone] = useState<ChartTimezone>(() => {
+    try {
+      const saved = localStorage.getItem('tv_timezone');
+      if (saved && (saved === 'America/Bogota' || saved === 'America/New_York' || saved === 'UTC')) {
+        return saved as ChartTimezone;
+      }
+    } catch {}
+    return 'America/Bogota';
+  });
+
+  const handleSelectTimezone = (tz: ChartTimezone) => {
+    setTimezone(tz);
+    localStorage.setItem('tv_timezone', tz);
+  };
 
   const [candles, setCandles] = useState<Candle[]>([]);
   const [currentPrice, setCurrentPrice] = useState(0);
@@ -181,11 +195,11 @@ export const App: React.FC = () => {
   const activePlots = useMemo(() => {
     const list = [...customPlots];
     if (indicators.ictKillzones) {
-      const ictPlots = calculateICTPlots(candles, ictSettings);
+      const ictPlots = calculateICTPlots(candles, ictSettings, timezone);
       list.push(...ictPlots);
     }
     return list;
-  }, [customPlots, indicators.ictKillzones, ictSettings, candles]);
+  }, [customPlots, indicators.ictKillzones, ictSettings, candles, timezone]);
 
   // Load historical data and subscribe to live ticks
   useEffect(() => {
@@ -520,6 +534,7 @@ export const App: React.FC = () => {
             clearTrigger={clearTrigger}
             customPlots={activePlots}
             ictSettings={ictSettings}
+            timezone={timezone}
           />
         </main>
 
@@ -535,7 +550,12 @@ export const App: React.FC = () => {
       <PineEditor candles={candles} onPlotsUpdate={setCustomPlots} />
 
       {/* Bottom Status / Range Bar */}
-      <BottomBar activeRange={activeRange} onSelectRange={setActiveRange} />
+      <BottomBar
+        activeRange={activeRange}
+        onSelectRange={setActiveRange}
+        timezone={timezone}
+        onSelectTimezone={handleSelectTimezone}
+      />
     </div>
   );
 };

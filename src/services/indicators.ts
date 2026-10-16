@@ -300,14 +300,28 @@ function isInSession(timeMin: number, startMin: number, endMin: number): boolean
   return timeMin >= startMin && timeMin < endMin;
 }
 
+export function getTimezoneOffsetSec(
+  timeSec: number,
+  timeZone: import('../types').ChartTimezone = 'America/New_York'
+): number {
+  if (timeZone === 'UTC') return 0;
+  if (timeZone === 'America/Bogota') return -5 * 3600;
+  // America/New_York: EDT (UTC-4) in summer/fall, EST (UTC-5) in winter
+  const date = new Date((timeSec || Date.now() / 1000) * 1000);
+  const month = date.getUTCMonth();
+  const isEDT = month >= 2 && month <= 10;
+  return isEDT ? -4 * 3600 : -5 * 3600;
+}
+
 export function calculateICTPlots(
   candles: Candle[],
-  settings: import('../types').ICTSettings = DEFAULT_ICT_SETTINGS
+  settings: import('../types').ICTSettings = DEFAULT_ICT_SETTINGS,
+  timezone: import('../types').ChartTimezone = 'America/New_York'
 ): import('./pineEngine').PinePlot[] {
   if (!settings.enabled || candles.length === 0) return [];
   const plots: import('./pineEngine').PinePlot[] = [];
 
-  const nyOffsetSec = -4 * 3600; // America/New_York (UTC-4)
+  const nyOffsetSec = getTimezoneOffsetSec(candles[0]?.time || 0, timezone);
 
   // 1. Process Day / Week / Month Highs and Lows
   let currentDay = -1;
@@ -646,9 +660,10 @@ export interface ICTStatsSummary {
 
 export function calculateICTStats(
   candles: Candle[],
-  settings: import('../types').ICTSettings = DEFAULT_ICT_SETTINGS
+  settings: import('../types').ICTSettings = DEFAULT_ICT_SETTINGS,
+  timezone: import('../types').ChartTimezone = 'America/New_York'
 ): ICTStatsSummary {
-  const nyOffsetSec = -4 * 3600;
+  const nyOffsetSec = getTimezoneOffsetSec(candles[0]?.time || 0, timezone);
 
   const activeKzs = [
     { key: 'kz1', cfg: settings.kz1 || { enabled: true, name: 'ASIA', start: '20:00', end: '00:00', color: '#2962ff' } },
@@ -746,7 +761,8 @@ export interface ICTVisualData {
 
 export function calculateICTVisualElements(
   candles: Candle[],
-  settings: import('../types').ICTSettings = DEFAULT_ICT_SETTINGS
+  settings: import('../types').ICTSettings = DEFAULT_ICT_SETTINGS,
+  timezone: import('../types').ChartTimezone = 'America/New_York'
 ): ICTVisualData {
   if (!settings.enabled || candles.length === 0) {
     return { rays: [], verticals: [], axisPriceLines: [] };
@@ -756,7 +772,7 @@ export function calculateICTVisualElements(
   const verticals: ICTVerticalMarker[] = [];
   const axisPriceLines: { price: number; color: string; title: string; lineStyle: number }[] = [];
 
-  const nyOffsetSec = -4 * 3600;
+  const nyOffsetSec = getTimezoneOffsetSec(candles[0]?.time || 0, timezone);
 
   // Group candles by NY day
   const dayIndices: { day: number; dayName: string; startIndex: number; endIndex: number }[] = [];
