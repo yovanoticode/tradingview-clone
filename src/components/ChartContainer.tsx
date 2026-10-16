@@ -21,6 +21,8 @@ import {
   calculateSMA,
   calculateICTStats,
   calculateICTVisualElements,
+  calculateMACD,
+  calculateStochastic,
 } from '../services/indicators';
 import type { PinePlot } from '../services/pineEngine';
 import { Minus, Plus, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
@@ -59,6 +61,15 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const bbMiddleRef = useRef<ISeriesApi<'Line'> | null>(null);
   const bbLowerRef = useRef<ISeriesApi<'Line'> | null>(null);
   const pineSeriesRef = useRef<Map<string, ISeriesApi<'Line'>>>(new Map());
+
+  // MACD series refs
+  const macdLineRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const macdSignalRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const macdHistRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+
+  // Stochastic series refs
+  const stochKRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const stochDRef = useRef<ISeriesApi<'Line'> | null>(null);
 
   // Stored price lines (drawings)
   const priceLinesRef = useRef<any[]>([]);
@@ -548,6 +559,92 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       bbUpperRef.current = null;
       bbMiddleRef.current = null;
       bbLowerRef.current = null;
+    }
+
+    // MACD (12, 26, 9)
+    if (indicators.macd) {
+      if (!macdLineRef.current) {
+        macdLineRef.current = chart.addSeries(LineSeries, {
+          color: '#2962ff',
+          lineWidth: 2,
+          title: 'MACD (12, 26)',
+          priceScaleId: 'macd_scale',
+        });
+        macdSignalRef.current = chart.addSeries(LineSeries, {
+          color: '#ff6d00',
+          lineWidth: 1,
+          title: 'Signal (9)',
+          priceScaleId: 'macd_scale',
+        });
+        macdHistRef.current = chart.addSeries(HistogramSeries, {
+          color: '#26a69a',
+          title: 'Histogram',
+          priceScaleId: 'macd_scale',
+        });
+        chart.priceScale('macd_scale').applyOptions({
+          scaleMargins: {
+            top: 0.75,
+            bottom: 0.02,
+          },
+        });
+      }
+      const data = calculateMACD(candles);
+      if (data.length > 0) {
+        macdLineRef.current.setData(data.map((d) => ({ time: d.time as Time, value: d.macd })));
+        macdSignalRef.current?.setData(data.map((d) => ({ time: d.time as Time, value: d.signal })));
+        macdHistRef.current?.setData(
+          data.map((d) => ({
+            time: d.time as Time,
+            value: d.histogram,
+            color: d.histogram >= 0 ? '#26a69a' : '#ef5350',
+          }))
+        );
+      }
+    } else if (macdLineRef.current) {
+      try {
+        if (macdLineRef.current) chart.removeSeries(macdLineRef.current);
+        if (macdSignalRef.current) chart.removeSeries(macdSignalRef.current);
+        if (macdHistRef.current) chart.removeSeries(macdHistRef.current);
+      } catch {}
+      macdLineRef.current = null;
+      macdSignalRef.current = null;
+      macdHistRef.current = null;
+    }
+
+    // Stochastic Oscillator (14, 3, 3)
+    if (indicators.stochastic) {
+      if (!stochKRef.current) {
+        stochKRef.current = chart.addSeries(LineSeries, {
+          color: '#2962ff',
+          lineWidth: 2,
+          title: '%K (14, 3)',
+          priceScaleId: 'stoch_scale',
+        });
+        stochDRef.current = chart.addSeries(LineSeries, {
+          color: '#ff6d00',
+          lineWidth: 1,
+          title: '%D (3)',
+          priceScaleId: 'stoch_scale',
+        });
+        chart.priceScale('stoch_scale').applyOptions({
+          scaleMargins: {
+            top: 0.75,
+            bottom: 0.02,
+          },
+        });
+      }
+      const data = calculateStochastic(candles);
+      if (data.length > 0) {
+        stochKRef.current.setData(data.map((d) => ({ time: d.time as Time, value: d.k })));
+        stochDRef.current?.setData(data.map((d) => ({ time: d.time as Time, value: d.d })));
+      }
+    } else if (stochKRef.current) {
+      try {
+        if (stochKRef.current) chart.removeSeries(stochKRef.current);
+        if (stochDRef.current) chart.removeSeries(stochDRef.current);
+      } catch {}
+      stochKRef.current = null;
+      stochDRef.current = null;
     }
   }, [indicators, candles]);
 

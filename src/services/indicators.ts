@@ -106,6 +106,117 @@ export function calculateRSI(candles: Candle[], period = 14): IndicatorPoint[] {
   return result;
 }
 
+export interface MACDPoint {
+  time: number;
+  macd: number;
+  signal: number;
+  histogram: number;
+}
+
+export function calculateMACD(
+  candles: Candle[],
+  fastPeriod = 12,
+  slowPeriod = 26,
+  signalPeriod = 9
+): MACDPoint[] {
+  if (candles.length < slowPeriod + signalPeriod) return [];
+
+  const fastEMA = calculateEMA(candles, fastPeriod);
+  const slowEMA = calculateEMA(candles, slowPeriod);
+
+  const slowMap = new Map<number, number>();
+  slowEMA.forEach((p) => slowMap.set(p.time, p.value));
+
+  const macdRaw: { time: number; value: number }[] = [];
+  fastEMA.forEach((f) => {
+    const s = slowMap.get(f.time);
+    if (s !== undefined) {
+      macdRaw.push({ time: f.time, value: f.value - s });
+    }
+  });
+
+  if (macdRaw.length < signalPeriod) return [];
+
+  const k = 2 / (signalPeriod + 1);
+  let signalEma = macdRaw.slice(0, signalPeriod).reduce((acc, p) => acc + p.value, 0) / signalPeriod;
+
+  const result: MACDPoint[] = [];
+  result.push({
+    time: macdRaw[signalPeriod - 1].time,
+    macd: macdRaw[signalPeriod - 1].value,
+    signal: signalEma,
+    histogram: macdRaw[signalPeriod - 1].value - signalEma,
+  });
+
+  for (let i = signalPeriod; i < macdRaw.length; i++) {
+    signalEma = macdRaw[i].value * k + signalEma * (1 - k);
+    result.push({
+      time: macdRaw[i].time,
+      macd: macdRaw[i].value,
+      signal: signalEma,
+      histogram: macdRaw[i].value - signalEma,
+    });
+  }
+
+  return result;
+}
+
+export interface StochasticPoint {
+  time: number;
+  k: number;
+  d: number;
+}
+
+export function calculateStochastic(
+  candles: Candle[],
+  period = 14,
+  smoothK = 3,
+  smoothD = 3
+): StochasticPoint[] {
+  if (candles.length < period + smoothK + smoothD) return [];
+
+  const rawK: { time: number; value: number }[] = [];
+  for (let i = period - 1; i < candles.length; i++) {
+    let lowest = Infinity;
+    let highest = -Infinity;
+    for (let j = i - period + 1; j <= i; j++) {
+      lowest = Math.min(lowest, candles[j].low);
+      highest = Math.max(highest, candles[j].high);
+    }
+    const range = highest - lowest;
+    const value = range === 0 ? 50 : ((candles[i].close - lowest) / range) * 100;
+    rawK.push({ time: candles[i].time, value });
+  }
+
+  const kPoints: { time: number; value: number }[] = [];
+  if (smoothK <= 1) {
+    kPoints.push(...rawK);
+  } else {
+    for (let i = smoothK - 1; i < rawK.length; i++) {
+      let sum = 0;
+      for (let j = i - smoothK + 1; j <= i; j++) {
+        sum += rawK[j].value;
+      }
+      kPoints.push({ time: rawK[i].time, value: sum / smoothK });
+    }
+  }
+
+  const result: StochasticPoint[] = [];
+  for (let i = smoothD - 1; i < kPoints.length; i++) {
+    let sum = 0;
+    for (let j = i - smoothD + 1; j <= i; j++) {
+      sum += kPoints[j].value;
+    }
+    result.push({
+      time: kPoints[i].time,
+      k: kPoints[i].value,
+      d: sum / smoothD,
+    });
+  }
+
+  return result;
+}
+
 export const DEFAULT_ICT_SETTINGS: import('../types').ICTSettings = {
   enabled: true,
 

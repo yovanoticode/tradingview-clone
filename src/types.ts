@@ -21,6 +21,8 @@ export interface IndicatorConfig {
   rsi: boolean;
   volume: boolean;
   ictKillzones: boolean;
+  macd: boolean;
+  stochastic: boolean;
 }
 
 export interface ICTKillzoneConfig {

@@ -296,6 +296,22 @@ export const Header: React.FC<HeaderProps> = ({
               />
               <span>RSI 14 (Índice de Fuerza Relativa)</span>
             </label>
+            <label className="indicator-toggle">
+              <input
+                type="checkbox"
+                checked={indicators.macd}
+                onChange={() => onToggleIndicator('macd')}
+              />
+              <span>MACD (12, 26, 9)</span>
+            </label>
+            <label className="indicator-toggle">
+              <input
+                type="checkbox"
+                checked={indicators.stochastic}
+                onChange={() => onToggleIndicator('stochastic')}
+              />
+              <span>Estocástico (14, 3, 3)</span>
+            </label>
 
             <div style={{ borderTop: '1px solid var(--tv-border)', margin: '4px 0' }} />
 

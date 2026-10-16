@@ -25,6 +25,8 @@ export const App: React.FC = () => {
     bollinger: false,
     rsi: false,
     ictKillzones: true,
+    macd: false,
+    stochastic: false,
   });
 
   const [ictSettings, setIctSettings] = useState<ICTSettings>(() => {
