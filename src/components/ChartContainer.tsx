@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import {
   createChart,
   CandlestickSeries,
@@ -14,11 +14,12 @@ import type {
   ISeriesApi,
   Time,
 } from 'lightweight-charts';
-import type { Candle, ChartType, DrawingTool, IndicatorConfig } from '../types';
+import type { Candle, ChartType, DrawingTool, IndicatorConfig, ICTSettings } from '../types';
 import {
   calculateBollingerBands,
   calculateEMA,
   calculateSMA,
+  calculateICTStats,
 } from '../services/indicators';
 import type { PinePlot } from '../services/pineEngine';
 import { Minus, Plus, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
@@ -31,6 +32,7 @@ interface ChartContainerProps {
   activeTool: DrawingTool;
   clearTrigger: number;
   customPlots?: PinePlot[];
+  ictSettings?: ICTSettings;
 }
 
 export const ChartContainer: React.FC<ChartContainerProps> = ({
@@ -41,6 +43,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   activeTool,
   clearTrigger,
   customPlots = [],
+  ictSettings,
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -68,6 +71,11 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     volume?: number;
     change?: number;
   }>({});
+
+  const ictStats = useMemo(() => {
+    if (!indicators.ictKillzones || !ictSettings?.showDataTable) return null;
+    return calculateICTStats(candles, ictSettings);
+  }, [candles, ictSettings, indicators.ictKillzones]);
 
   // 1. Create and manage chart instance
   useEffect(() => {
@@ -437,7 +445,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         try {
           const s = chart.addSeries(LineSeries, {
             color: plot.color,
-            lineWidth: 2,
+            lineWidth: (plot.lineWidth || 2) as any,
+            lineStyle: (plot.lineStyle !== undefined ? plot.lineStyle : 0) as any,
             title: plot.title,
           });
           s.setData(plot.data.map((d) => ({ time: d.time as Time, value: d.value })));
@@ -577,6 +586,64 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
       {/* Main Lightweight Charts Canvas */}
       <div ref={chartContainerRef} className="chart-canvas" />
+
+      {/* ICT Range Data & Pivots HUD Table */}
+      {indicators.ictKillzones && ictSettings?.showDataTable && ictStats && ictStats.sessions.length > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '42px',
+            right: '65px',
+            background: 'rgba(19, 23, 34, 0.90)',
+            backdropFilter: 'blur(4px)',
+            border: '1px solid #2a2e39',
+            borderRadius: '6px',
+            padding: '6px 10px',
+            zIndex: 10,
+            fontSize: '11px',
+            color: '#d1d4dc',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+            userSelect: 'none',
+          }}
+        >
+          <div style={{ fontWeight: 600, color: '#38bdf8', marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            ICT Killzones Range Data
+          </div>
+          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr style={{ color: '#94a3b8', borderBottom: '1px solid #2a2e39', textAlign: 'left', fontSize: '10px' }}>
+                <th style={{ padding: '2px 6px' }}>Sesión</th>
+                <th style={{ padding: '2px 6px', textAlign: 'right' }}>Rango</th>
+                <th style={{ padding: '2px 6px', textAlign: 'right' }}>Prom.</th>
+                <th style={{ padding: '2px 6px', textAlign: 'right' }}>High %</th>
+                <th style={{ padding: '2px 6px', textAlign: 'right' }}>Low %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ictStats.sessions.map((s) => (
+                <tr key={s.name} style={{ borderBottom: '1px solid rgba(42, 46, 57, 0.5)' }}>
+                  <td style={{ padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: s.color, display: 'inline-block' }} />
+                    <span style={{ fontWeight: 600 }}>{s.name}</span>
+                  </td>
+                  <td style={{ padding: '2px 6px', textAlign: 'right', color: s.isHitHigh ? '#089981' : '#cbd5e1' }}>
+                    {s.currentRange.toFixed(1)}
+                  </td>
+                  <td style={{ padding: '2px 6px', textAlign: 'right', color: '#94a3b8' }}>
+                    {s.avgRange.toFixed(1)}
+                  </td>
+                  <td style={{ padding: '2px 6px', textAlign: 'right', color: '#38bdf8' }}>
+                    {s.highHitRate.toFixed(0)}%
+                  </td>
+                  <td style={{ padding: '2px 6px', textAlign: 'right', color: '#f43f5e' }}>
+                    {s.lowHitRate.toFixed(0)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Floating TradingView Navigation Controls */}
       <div className="tv-chart-nav-controls" onClick={(e) => e.stopPropagation()}>

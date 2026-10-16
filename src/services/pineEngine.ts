@@ -5,6 +5,8 @@ export interface PinePlot {
   title: string;
   color: string;
   data: { time: number; value: number }[];
+  lineWidth?: number;
+  lineStyle?: number;
 }
 
 export interface BacktestResult {

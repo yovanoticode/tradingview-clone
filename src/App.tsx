@@ -30,7 +30,7 @@ export const App: React.FC = () => {
   const [ictSettings, setIctSettings] = useState<ICTSettings>(() => {
     try {
       const saved = localStorage.getItem('ict_settings');
-      return saved ? JSON.parse(saved) : DEFAULT_ICT_SETTINGS;
+      return saved ? { ...DEFAULT_ICT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_ICT_SETTINGS;
     } catch {
       return DEFAULT_ICT_SETTINGS;
     }
@@ -212,6 +212,7 @@ export const App: React.FC = () => {
             activeTool={activeTool}
             clearTrigger={clearTrigger}
             customPlots={activePlots}
+            ictSettings={ictSettings}
           />
         </main>
 

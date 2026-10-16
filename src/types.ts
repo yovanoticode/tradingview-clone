@@ -23,24 +23,82 @@ export interface IndicatorConfig {
   ictKillzones: boolean;
 }
 
+export interface ICTKillzoneConfig {
+  enabled: boolean;
+  name: string;
+  start: string; // "HH:MM" e.g. "20:00"
+  end: string;   // "HH:MM" e.g. "00:00"
+  color: string;
+  showMidpoint?: boolean;
+}
+
 export interface ICTSettings {
   enabled: boolean;
-  asia: boolean;
-  asiaColor: string;
-  london: boolean;
-  londonColor: string;
-  nyam: boolean;
-  nyamColor: string;
-  nypm: boolean;
-  nypmColor: string;
+  
+  // Killzones 1-6
+  kz1: ICTKillzoneConfig; // ASIA
+  kz2: ICTKillzoneConfig; // LNDN
+  kz3: ICTKillzoneConfig; // NYAM
+  kz4: ICTKillzoneConfig; // NYL
+  kz5: ICTKillzoneConfig; // NYPM
+  kz6: ICTKillzoneConfig; // RTH
+
+  // Killzone options
+  showBoxes: boolean;
+  showPivots: boolean;
+  showMidpoints: boolean;
+  showPivotLabels: boolean;
+  extendPivots: 'mitigated' | 'past';
+  maxDays: number;
+
+  // Day - Week - Month (DWM)
+  showDOpen: boolean;
+  dhl: boolean;
+  dmid: boolean;
+  dColor: string;
+
+  showWOpen: boolean;
+  whl: boolean;
+  wmid: boolean;
+  wColor: string;
+
+  showMOpen: boolean;
+  mhl: boolean;
+  mmid: boolean;
+  mColor: string;
+
+  // Opening Prices
+  showOpens: boolean;
   midnightOpen: boolean;
   midnightColor: string;
   open830: boolean;
   open830Color: string;
   open930: boolean;
   open930Color: string;
-  pdhl: boolean;
-  pdhlColor: string;
+  open1200: boolean;
+  open1200Color: string;
+  open1600: boolean;
+  open1600Color: string;
+
+  // Range Levels
+  showLevels: boolean;
+  levelsMultiplier: number;
+  levelColor: string;
+
+  // Data Table Stats HUD
+  showDataTable: boolean;
+
+  // Backwards compatibility helpers
+  asia?: boolean;
+  asiaColor?: string;
+  london?: boolean;
+  londonColor?: string;
+  nyam?: boolean;
+  nyamColor?: string;
+  nypm?: boolean;
+  nypmColor?: string;
+  pdhl?: boolean;
+  pdhlColor?: string;
 }
 
 export interface WatchlistItem {
