@@ -181,16 +181,19 @@ export class TradovateService {
     }
   }
 
-  private async fetchLiveAccounts(env: 'demo' | 'live', username: string): Promise<boolean> {
-    const proxyBase = env === 'live' ? '/tradovate-live' : '/tradovate-demo';
-    try {
-      if (this.token) {
+  private async fetchLiveAccounts(preferredEnv: 'demo' | 'live', username: string): Promise<boolean> {
+    const envOrder: ('demo' | 'live')[] = preferredEnv === 'demo' ? ['demo', 'live'] : ['demo', 'live']; // Apex/Topstep evaluations reside in demo
+    for (const env of envOrder) {
+      const proxyBase = env === 'live' ? '/tradovate-live' : '/tradovate-demo';
+      try {
+        if (!this.token) continue;
         const accRes = await fetch(`${proxyBase}/account/list`, {
           headers: { Authorization: `Bearer ${this.token}` },
         });
         if (accRes.ok) {
           const accData = await accRes.json();
           if (Array.isArray(accData) && accData.length > 0) {
+            this.env = env;
             let balanceMap: { [id: number]: number } = {};
 
             // Fetch live cash snapshot for each account
@@ -225,7 +228,7 @@ export class TradovateService {
                 const balData = await balRes.json();
                 if (Array.isArray(balData)) {
                   balData.forEach((b: any) => {
-                    const val = b.totalCashValue ?? b.netLiquidatingValue ?? b.amount ?? b.cash ?? b.sodCash;
+                    const val = b.totalCashValue ?? b.netLiquidatingValue ?? b.amount ?? b.cash ?? b.amountSOD ?? b.sodCash;
                     if (val !== undefined && balanceMap[b.accountId] === undefined) {
                       balanceMap[b.accountId] = Number(val);
                     }
@@ -246,8 +249,8 @@ export class TradovateService {
             return true;
           }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     // Fallback: If accounts don't exist yet, initialize both accounts for this user
     if (!this.accounts || this.accounts.length === 0) {
@@ -356,19 +359,33 @@ export class TradovateService {
                 if (msg.s === 200 && msg.i === authReqId) {
                   wsActive = true;
                   this.isConnected = true;
-                  this.ws?.send(`md/subscribequote\n${++this.requestId}\n\n{"symbol":"MNQ"}`);
-                  const chartMsg = JSON.stringify({
-                    symbol: 'MNQ',
-                    chartDescription: { underlyingType: 'Minute', elementSize: 1, elementSizeUnit: 'UnderlyingUnits' },
-                    timeRange: { asMuchAsElements: 300 },
-                  });
-                  this.ws?.send(`md/getchart\n${++this.requestId}\n\n${chartMsg}`);
+                  let activeSymbol = 'MNQZ6';
+                  const proxyBase = this.env === 'live' ? '/tradovate-live' : '/tradovate-demo';
+                  fetch(`${proxyBase}/contract/suggest?t=MNQ`, {
+                    headers: { Authorization: `Bearer ${this.token}` },
+                  })
+                    .then((r) => r.json())
+                    .then((contracts) => {
+                      if (Array.isArray(contracts) && contracts[0]?.name) {
+                        activeSymbol = contracts[0].name;
+                      }
+                      this.ws?.send(`md/subscribequote\n${++this.requestId}\n\n{"symbol":"${activeSymbol}"}`);
+                      const chartMsg = JSON.stringify({
+                        symbol: activeSymbol,
+                        chartDescription: { underlyingType: 'Minute', elementSize: 1, elementSizeUnit: 'UnderlyingUnits' },
+                        timeRange: { asMuchAsElements: 300 },
+                      });
+                      this.ws?.send(`md/getchart\n${++this.requestId}\n\n${chartMsg}`);
+                    })
+                    .catch(() => {
+                      this.ws?.send(`md/subscribequote\n${++this.requestId}\n\n{"symbol":"MNQZ6"}`);
+                    });
                 }
 
                 if (msg.e === 'md' && msg.d?.quotes) {
                   wsActive = true;
                   for (const q of msg.d.quotes) {
-                    const price = q.entries?.Trade?.price ?? q.entries?.Bid?.price ?? q.entries?.Ask?.price;
+                    const price = q.entries?.Trade?.price ?? q.entries?.Offer?.price ?? q.entries?.Bid?.price ?? q.entries?.Ask?.price;
                     if (typeof price === 'number') {
                       currentPrice = price;
                       const timeSec = q.entries?.Trade?.time
