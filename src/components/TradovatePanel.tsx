@@ -11,14 +11,16 @@ interface TradovatePanelProps {
 export const TradovatePanel: React.FC<TradovatePanelProps> = ({ currentPrice, symbol }) => {
   const [showModal, setShowModal] = useState(false);
   const [username, setUsername] = useState('JHENA8309');
-  const [accessToken, setAccessToken] = useState('');
-  const [env, setEnv] = useState<'demo' | 'live'>('live');
+  const tradovate = TradovateService.getInstance();
+  const [accessToken, setAccessToken] = useState(tradovate.token || '');
+  const [isConnected, setIsConnected] = useState(tradovate.isConnected);
+  const [isExpired, setIsExpired] = useState(tradovate.isTokenExpired());
+  const [env, setEnv] = useState<'demo' | 'live'>(tradovate.env);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   const [position, setPosition] = useState<Position | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const tradovate = TradovateService.getInstance();
   const [currentAccount, setCurrentAccount] = useState<TradovateAccount>(
     tradovate.selectedAccount
   );
@@ -33,10 +35,18 @@ export const TradovatePanel: React.FC<TradovatePanelProps> = ({ currentPrice, sy
     const unsubAcc = tradovate.onAccountChange((acc) => {
       setCurrentAccount({ ...acc });
       setAccountsList([...tradovate.accounts]);
+      setIsConnected(tradovate.isConnected);
+      setIsExpired(tradovate.isTokenExpired());
+    });
+    const unsubToken = tradovate.onTokenRefresh(() => {
+      setIsConnected(tradovate.isConnected);
+      setIsExpired(tradovate.isTokenExpired());
+      if (tradovate.token) setAccessToken(tradovate.token);
     });
     return () => {
       unsubPos();
       unsubAcc();
+      unsubToken();
     };
   }, []);
 
@@ -53,6 +63,8 @@ export const TradovatePanel: React.FC<TradovatePanelProps> = ({ currentPrice, sy
 
     setLoading(false);
     if (res.ok) {
+      setIsConnected(true);
+      setIsExpired(false);
       setShowModal(false);
     } else {
       setErrorMsg(res.error || 'Fallo de autenticación');
@@ -68,11 +80,30 @@ export const TradovatePanel: React.FC<TradovatePanelProps> = ({ currentPrice, sy
         <div className="bar-account-section">
           <div className="account-selector-wrap">
             <span
-              className={`status-pill ${tradovate.isConnected ? 'online' : 'simulated'}`}
-              title={tradovate.isConnected ? 'Conectado a Servidor Tradovate' : 'Modo Fondeo (JHENA8309)'}
+              className={`status-pill ${
+                isConnected ? 'online' : isExpired && tradovate.token ? 'expired' : 'simulated'
+              }`}
+              title={
+                isConnected
+                  ? 'Conectado a Servidor Tradovate en tiempo real'
+                  : isExpired && tradovate.token
+                  ? 'Token Bearer Tradovate Expirado. Clic para renovar.'
+                  : 'Modo Fondeo (JHENA8309)'
+              }
+              onClick={() => setShowModal(true)}
+              style={{ cursor: 'pointer' }}
             >
-              <ShieldCheck size={14} className={tradovate.isConnected ? 'green' : 'gold'} />
-              <span className="status-label">{tradovate.isConnected ? 'Tradovate Live' : 'JHENA8309'}</span>
+              <ShieldCheck
+                size={14}
+                className={isConnected ? 'green' : isExpired && tradovate.token ? 'amber' : 'gold'}
+              />
+              <span className="status-label">
+                {isConnected
+                  ? 'Tradovate Live'
+                  : isExpired && tradovate.token
+                  ? 'Token Expirado (Renovar)'
+                  : 'JHENA8309'}
+              </span>
             </span>
 
             {/* Account Dropdown Switcher */}
@@ -307,7 +338,12 @@ export const TradovatePanel: React.FC<TradovatePanelProps> = ({ currentPrice, sy
                 </div>
 
                 <div className="form-group">
-                  <label>Token de Acceso Bearer (Copiado de trader.tradovate.com)</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label>Token de Acceso Bearer (Copiado de trader.tradovate.com)</label>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#88909b', margin: '2px 0 6px 0', lineHeight: '1.4' }}>
+                    En trader.tradovate.com: Abre Consola (F12) y ejecuta: <code style={{ color: '#2962ff' }}>localStorage.getItem('access_token')</code>
+                  </div>
                   <input
                     type="text"
                     placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."

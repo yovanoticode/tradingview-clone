@@ -1015,8 +1015,18 @@ html, body, #root {
   background: rgba(247, 166, 0, 0.08);
 }
 
+.status-pill.expired {
+  color: #ff9800;
+  border-color: rgba(255, 152, 0, 0.5);
+  background: rgba(255, 152, 0, 0.15);
+}
+
 .status-pill .gold {
   color: #f7a600;
+}
+
+.status-pill .amber {
+  color: #ff9800;
 }
 
 .status-pill .green {

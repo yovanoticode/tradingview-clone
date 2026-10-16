@@ -30,6 +30,7 @@ export class TradovateService {
   private static instance: TradovateService;
   public isConnected = false;
   public token: string | null = null;
+  public env: 'demo' | 'live' = 'live';
   public accounts: TradovateAccount[] = [
     { id: 101, name: 'JHENA-EVAL-01 (50k)', accountType: 'Apex / Topstep Eval', balance: 50000 },
     { id: 102, name: 'JHENA-EVAL-02 (50k)', accountType: 'Apex / Topstep Eval', balance: 50000 },
@@ -41,12 +42,36 @@ export class TradovateService {
   private requestId = 0;
   private onPositionUpdateCallbacks: ((pos: Position | null) => void)[] = [];
   private onAccountUpdateCallbacks: ((acc: TradovateAccount) => void)[] = [];
+  private onTokenRefreshCallbacks: (() => void)[] = [];
 
   public static getInstance(): TradovateService {
     if (!TradovateService.instance) {
       TradovateService.instance = new TradovateService();
     }
     return TradovateService.instance;
+  }
+
+  public isTokenExpired(): boolean {
+    if (!this.token) return true;
+    try {
+      const parts = this.token.split('.');
+      if (parts.length < 2) return true;
+      const payload = JSON.parse(atob(parts[1]));
+      return Date.now() / 1000 >= payload.exp;
+    } catch {
+      return false;
+    }
+  }
+
+  public onTokenRefresh(cb: () => void): () => void {
+    this.onTokenRefreshCallbacks.push(cb);
+    return () => {
+      this.onTokenRefreshCallbacks = this.onTokenRefreshCallbacks.filter((c) => c !== cb);
+    };
+  }
+
+  private notifyTokenRefresh() {
+    this.onTokenRefreshCallbacks.forEach((cb) => cb());
   }
 
   constructor() {
@@ -72,7 +97,11 @@ export class TradovateService {
       const savedToken = localStorage.getItem('tradovate_token');
       if (savedToken) {
         this.token = savedToken;
-        this.isConnected = true;
+        this.isConnected = !this.isTokenExpired();
+      }
+      const savedEnv = localStorage.getItem('tradovate_env');
+      if (savedEnv === 'demo' || savedEnv === 'live') {
+        this.env = savedEnv;
       }
     } catch {}
   }
@@ -86,12 +115,14 @@ export class TradovateService {
       if (this.token) {
         localStorage.setItem('tradovate_token', this.token);
       }
+      localStorage.setItem('tradovate_env', this.env);
     } catch {}
   }
 
   public async login(creds: TradovateCredentials): Promise<{ ok: boolean; error?: string }> {
     try {
       const username = creds.name || 'JHENA8309';
+      this.env = creds.env;
 
       if (creds.accessToken && creds.accessToken.trim().length > 10) {
         this.token = creds.accessToken.trim();
@@ -99,6 +130,7 @@ export class TradovateService {
         if (success) {
           this.isConnected = true;
           this.saveToStorage();
+          this.notifyTokenRefresh();
           return { ok: true };
         } else {
           return { ok: false, error: 'Token de acceso no válido o expirado en Tradovate' };
@@ -141,6 +173,8 @@ export class TradovateService {
       this.token = data.accessToken;
       this.isConnected = true;
       await this.fetchLiveAccounts(creds.env, username);
+      this.saveToStorage();
+      this.notifyTokenRefresh();
       return { ok: true };
     } catch (err: any) {
       return { ok: false, error: err.message || 'No se pudo conectar a Tradovate' };
@@ -285,51 +319,117 @@ export class TradovateService {
     _interval: Timeframe,
     onCandle: (candle: Candle) => void
   ): () => void {
-    if (this.token) {
+    let isCancelled = false;
+    let wsActive = false;
+    let currentPrice = 30085.00;
+    let momentum = 0;
+    let authReqId = 0;
+
+    const startWebSocket = () => {
+      if (this.ws) {
+        try { this.ws.close(); } catch {}
+        this.ws = null;
+      }
+      if (!this.token || this.isTokenExpired()) {
+        wsActive = false;
+        return;
+      }
+
       try {
-        const mdUrl = 'wss://md-demo.tradovateapi.com/v1/websocket';
+        const mdUrl = this.env === 'live'
+          ? 'wss://md-live.tradovateapi.com/v1/websocket'
+          : 'wss://md-demo.tradovateapi.com/v1/websocket';
+
         this.ws = new WebSocket(mdUrl);
 
         this.ws.onopen = () => {
-          this.ws?.send(`authorize\n${++this.requestId}\n\n${this.token}`);
-          const msg = JSON.stringify({
-            symbol: 'MNQZ6',
-            chartDescription: { underlyingType: 'Minute', elementSize: 1, elementSizeUnit: 'UnderlyingUnits' },
-            timeRange: { asMuchAsElements: 300 },
-          });
-          this.ws?.send(`md/getchart\n${++this.requestId}\n\n${msg}`);
+          authReqId = ++this.requestId;
+          this.ws?.send(`authorize\n${authReqId}\n\n${this.token}`);
         };
 
         this.ws.onmessage = (event) => {
           try {
             const raw = event.data as string;
             if (raw.startsWith('a[')) {
-              const parsed = JSON.parse(raw.slice(1));
-              if (parsed[0]?.d?.plots) {
-                for (const p of parsed[0].d.plots) {
-                  onCandle({
-                    time: Math.floor(new Date(p.t).getTime() / 1000),
-                    open: p.o,
-                    high: p.h,
-                    low: p.l,
-                    close: p.c,
-                    volume: p.v || 1,
+              const list = JSON.parse(raw.slice(1));
+              for (const msg of list) {
+                if (msg.s === 200 && msg.i === authReqId) {
+                  wsActive = true;
+                  this.isConnected = true;
+                  this.ws?.send(`md/subscribequote\n${++this.requestId}\n\n{"symbol":"MNQ"}`);
+                  const chartMsg = JSON.stringify({
+                    symbol: 'MNQ',
+                    chartDescription: { underlyingType: 'Minute', elementSize: 1, elementSizeUnit: 'UnderlyingUnits' },
+                    timeRange: { asMuchAsElements: 300 },
                   });
+                  this.ws?.send(`md/getchart\n${++this.requestId}\n\n${chartMsg}`);
+                }
+
+                if (msg.e === 'md' && msg.d?.quotes) {
+                  wsActive = true;
+                  for (const q of msg.d.quotes) {
+                    const price = q.entries?.Trade?.price ?? q.entries?.Bid?.price ?? q.entries?.Ask?.price;
+                    if (typeof price === 'number') {
+                      currentPrice = price;
+                      const timeSec = q.entries?.Trade?.time
+                        ? Math.floor(new Date(q.entries.Trade.time).getTime() / 1000)
+                        : Math.floor(Date.now() / 1000);
+
+                      onCandle({
+                        time: timeSec,
+                        open: price,
+                        high: price,
+                        low: price,
+                        close: price,
+                        volume: q.entries?.Trade?.size || 1,
+                      });
+
+                      if (this.position) {
+                        this.position.currentPrice = currentPrice;
+                        const pointDiff = (currentPrice - this.position.entryPrice) * (this.position.qty > 0 ? 1 : -1);
+                        this.position.unrealizedPnL = pointDiff * 2.0 * Math.abs(this.position.qty);
+                        this.notifyPosition();
+                      }
+                    }
+                  }
+                }
+
+                if (msg.e === 'chart' && msg.d?.plots) {
+                  for (const p of msg.d.plots) {
+                    onCandle({
+                      time: Math.floor(new Date(p.t).getTime() / 1000),
+                      open: p.o,
+                      high: p.h,
+                      low: p.l,
+                      close: p.c,
+                      volume: p.v || 1,
+                    });
+                  }
+                }
+
+                if (msg.s === 401 || (msg.errorText && msg.errorText.toLowerCase().includes('token'))) {
+                  wsActive = false;
+                  this.isConnected = false;
+                  this.notifyAccount();
                 }
               }
             }
           } catch {}
         };
+
+        this.ws.onerror = () => { wsActive = false; };
+        this.ws.onclose = () => { wsActive = false; };
       } catch {}
-    }
+    };
 
-    let isCancelled = false;
-    let currentPrice = 30085.00;
-    let momentum = 0;
+    startWebSocket();
+    const unsubRefresh = this.onTokenRefresh(() => {
+      startWebSocket();
+    });
 
-    // 1. Fetch real market anchor from Yahoo Finance
+    // 1. Fetch market anchor from Yahoo Finance if WebSocket not yet delivering ticks
     const syncMarketAnchor = async () => {
-      if (isCancelled) return;
+      if (isCancelled || wsActive) return;
       try {
         const res = await fetch('/api-yahoo/v8/finance/chart/MNQ=F?interval=1m&range=1d');
         if (res.ok) {
@@ -346,13 +446,11 @@ export class TradovateService {
     syncMarketAnchor();
     const anchorTimer = setInterval(syncMarketAnchor, 10000);
 
-    // 2. Continuous real-time CME tick generator (1-second heartbeat at 0.25 tick steps)
+    // 2. Fallback gentle tick generator ONLY if real Tradovate feed is disconnected
     const tickTimer = setInterval(() => {
-      if (isCancelled) return;
+      if (isCancelled || wsActive) return;
 
       const now = Math.floor(Date.now() / 1000);
-
-      // Realistic CME micro-ticks (0.25 steps)
       const r = Math.random();
       let delta = 0;
       if (r < 0.28) {
@@ -390,6 +488,7 @@ export class TradovateService {
 
     return () => {
       isCancelled = true;
+      unsubRefresh();
       clearInterval(tickTimer);
       clearInterval(anchorTimer);
       if (this.ws) {
