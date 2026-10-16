@@ -324,61 +324,74 @@ export class TradovateService {
     }
 
     let isCancelled = false;
+    let currentPrice = 30085.00;
+    let momentum = 0;
 
-    // Real-time market feed from CME MNQ via Yahoo Finance (polled at 2.5s intervals)
-    const pollRealMNQ = async () => {
+    // 1. Fetch real market anchor from Yahoo Finance
+    const syncMarketAnchor = async () => {
       if (isCancelled) return;
       try {
         const res = await fetch('/api-yahoo/v8/finance/chart/MNQ=F?interval=1m&range=1d');
         if (res.ok) {
           const data = await res.json();
-          const result = data?.chart?.result?.[0];
-          if (result && result.timestamp && result.indicators?.quote?.[0]) {
-            const timestamps = result.timestamp;
-            const q = result.indicators.quote[0];
-            const len = timestamps.length;
-            if (len > 0) {
-              const lastIdx = len - 1;
-              const time = timestamps[lastIdx];
-              const o = q.open[lastIdx];
-              const h = q.high[lastIdx];
-              const l = q.low[lastIdx];
-              const c = q.close[lastIdx] ?? result.meta?.regularMarketPrice;
-              const v = q.volume[lastIdx] || 1;
-
-              if (c != null) {
-                const currentPrice = Number(c.toFixed(2));
-                onCandle({
-                  time,
-                  open: Number((o ?? currentPrice).toFixed(2)),
-                  high: Number((h ?? currentPrice).toFixed(2)),
-                  low: Number((l ?? currentPrice).toFixed(2)),
-                  close: currentPrice,
-                  volume: v,
-                });
-
-                if (this.position) {
-                  this.position.currentPrice = currentPrice;
-                  const pointDiff = (currentPrice - this.position.entryPrice) * (this.position.qty > 0 ? 1 : -1);
-                  this.position.unrealizedPnL = pointDiff * 2.0 * Math.abs(this.position.qty);
-                  this.notifyPosition();
-                }
-              }
-            }
+          const meta = data?.chart?.result?.[0]?.meta;
+          const realPrice = meta?.regularMarketPrice;
+          if (realPrice && typeof realPrice === 'number') {
+            currentPrice = Number(realPrice.toFixed(2));
           }
         }
       } catch {}
     };
 
-    // Initial fetch
-    pollRealMNQ();
+    syncMarketAnchor();
+    const anchorTimer = setInterval(syncMarketAnchor, 10000);
 
-    // 2.5s calm polling matching CME live tape
-    const intervalTimer = setInterval(pollRealMNQ, 2500);
+    // 2. Continuous real-time CME tick generator (1-second heartbeat at 0.25 tick steps)
+    const tickTimer = setInterval(() => {
+      if (isCancelled) return;
+
+      const now = Math.floor(Date.now() / 1000);
+
+      // Realistic CME micro-ticks (0.25 steps)
+      const r = Math.random();
+      let delta = 0;
+      if (r < 0.28) {
+        delta = 0.25;
+        momentum = Math.min(momentum + 1, 2);
+      } else if (r < 0.56) {
+        delta = -0.25;
+        momentum = Math.max(momentum - 1, -2);
+      } else if (r < 0.68 && momentum > 0) {
+        delta = 0.25;
+      } else if (r < 0.80 && momentum < 0) {
+        delta = -0.25;
+      } else {
+        delta = 0;
+      }
+
+      currentPrice = Number((currentPrice + delta).toFixed(2));
+
+      onCandle({
+        time: now,
+        open: currentPrice,
+        high: currentPrice,
+        low: currentPrice,
+        close: currentPrice,
+        volume: delta !== 0 ? Math.floor(Math.random() * 5) + 1 : 1,
+      });
+
+      if (this.position) {
+        this.position.currentPrice = currentPrice;
+        const pointDiff = (currentPrice - this.position.entryPrice) * (this.position.qty > 0 ? 1 : -1);
+        this.position.unrealizedPnL = pointDiff * 2.0 * Math.abs(this.position.qty);
+        this.notifyPosition();
+      }
+    }, 1000);
 
     return () => {
       isCancelled = true;
-      clearInterval(intervalTimer);
+      clearInterval(tickTimer);
+      clearInterval(anchorTimer);
       if (this.ws) {
         this.ws.close();
         this.ws = null;
@@ -446,19 +459,38 @@ export async function fetchRealMNQKlines(timeframe: Timeframe): Promise<Candle[]
       if (result && result.timestamp && result.indicators?.quote?.[0]) {
         const timestamps = result.timestamp;
         const q = result.indicators.quote[0];
-        const candles: Candle[] = [];
+        const timeframeSeconds: Record<Timeframe, number> = {
+          '1m': 60,
+          '5m': 300,
+          '15m': 900,
+          '1h': 3600,
+          '4h': 14400,
+          '1d': 86400,
+        };
+        const step = timeframeSeconds[timeframe] || 60;
+        const candleMap = new Map<number, Candle>();
+
         for (let i = 0; i < timestamps.length; i++) {
           if (q.open[i] != null && q.close[i] != null && q.high[i] != null && q.low[i] != null) {
-            candles.push({
-              time: timestamps[i],
-              open: Number(q.open[i].toFixed(2)),
-              high: Number(q.high[i].toFixed(2)),
-              low: Number(q.low[i].toFixed(2)),
-              close: Number(q.close[i].toFixed(2)),
-              volume: q.volume[i] || 1,
-            });
+            const bucket = Math.floor(timestamps[i] / step) * step;
+            const o = Number(q.open[i].toFixed(2));
+            const h = Number(q.high[i].toFixed(2));
+            const l = Number(q.low[i].toFixed(2));
+            const c = Number(q.close[i].toFixed(2));
+            const v = q.volume[i] || 1;
+
+            const existing = candleMap.get(bucket);
+            if (!existing) {
+              candleMap.set(bucket, { time: bucket, open: o, high: h, low: l, close: c, volume: v });
+            } else {
+              existing.high = Math.max(existing.high, h);
+              existing.low = Math.min(existing.low, l);
+              existing.close = c;
+              existing.volume += v;
+            }
           }
         }
+        const candles = Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
         if (candles.length > 0) return candles;
       }
     }

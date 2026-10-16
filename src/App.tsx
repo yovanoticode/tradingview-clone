@@ -65,16 +65,45 @@ export const App: React.FC = () => {
     const handleIncomingCandle = (incoming: Candle) => {
       if (!isMounted) return;
 
+      const timeframeSeconds: Record<Timeframe, number> = {
+        '1m': 60,
+        '5m': 300,
+        '15m': 900,
+        '1h': 3600,
+        '4h': 14400,
+        '1d': 86400,
+      };
+      const step = timeframeSeconds[timeframe] || 60;
+      const bucketTime = Math.floor(incoming.time / step) * step;
+
       setCandles((prev) => {
-        if (prev.length === 0) return [incoming];
+        if (prev.length === 0) {
+          return [{ ...incoming, time: bucketTime }];
+        }
         const last = prev[prev.length - 1];
 
-        if (last.time === incoming.time) {
+        if (last.time === bucketTime) {
           const updated = [...prev];
-          updated[updated.length - 1] = incoming;
+          updated[updated.length - 1] = {
+            ...last,
+            high: Math.max(last.high, incoming.close, incoming.high ?? incoming.close),
+            low: Math.min(last.low, incoming.close, incoming.low ?? incoming.close),
+            close: incoming.close,
+            volume: (last.volume || 0) + (incoming.volume || 1),
+          };
           return updated;
-        } else if (incoming.time > last.time) {
-          return [...prev.slice(-999), incoming];
+        } else if (bucketTime > last.time) {
+          return [
+            ...prev.slice(-999),
+            {
+              time: bucketTime,
+              open: incoming.open ?? last.close,
+              high: Math.max(incoming.open ?? last.close, incoming.close),
+              low: Math.min(incoming.open ?? last.close, incoming.close),
+              close: incoming.close,
+              volume: incoming.volume || 1,
+            },
+          ];
         }
         return prev;
       });
