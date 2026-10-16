@@ -606,3 +606,325 @@ export function calculateICTStats(
     pwl: 0,
   };
 }
+
+export interface ICTHorizontalRay {
+  id: string;
+  price: number;
+  startTime: number;
+  endTime: number;
+  color: string;
+  label: string;
+  lineStyle: 'solid' | 'dashed' | 'dotted';
+  isMitigated: boolean;
+}
+
+export interface ICTVerticalMarker {
+  id: string;
+  time: number;
+  color: string;
+  label?: string;
+  lineStyle: 'solid' | 'dashed' | 'dotted';
+  isDaySeparator?: boolean;
+}
+
+export interface ICTVisualData {
+  rays: ICTHorizontalRay[];
+  verticals: ICTVerticalMarker[];
+  axisPriceLines: { price: number; color: string; title: string; lineStyle: number }[];
+}
+
+export function calculateICTVisualElements(
+  candles: Candle[],
+  settings: import('../types').ICTSettings = DEFAULT_ICT_SETTINGS
+): ICTVisualData {
+  if (!settings.enabled || candles.length === 0) {
+    return { rays: [], verticals: [], axisPriceLines: [] };
+  }
+
+  const rays: ICTHorizontalRay[] = [];
+  const verticals: ICTVerticalMarker[] = [];
+  const axisPriceLines: { price: number; color: string; title: string; lineStyle: number }[] = [];
+
+  const nyOffsetSec = -4 * 3600;
+
+  // Group candles by NY day
+  const dayIndices: { day: number; dayName: string; startIndex: number; endIndex: number }[] = [];
+  let currentDay = -1;
+  const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles[i];
+    const nyDate = new Date((c.time + nyOffsetSec) * 1000);
+    const day = nyDate.getUTCDate();
+    const dayOfWeek = nyDate.getUTCDay();
+
+    if (day !== currentDay) {
+      if (dayIndices.length > 0) {
+        dayIndices[dayIndices.length - 1].endIndex = i - 1;
+      }
+      currentDay = day;
+      dayIndices.push({
+        day,
+        dayName: dayNames[dayOfWeek],
+        startIndex: i,
+        endIndex: candles.length - 1,
+      });
+    }
+  }
+
+  // 1. Day Separators & DWM
+  let prevDayHigh = 0;
+  let prevDayLow = 0;
+  let prevMonthHigh = 0;
+  let prevMonthLow = 0;
+
+  for (let d = 0; d < dayIndices.length; d++) {
+    const dayInfo = dayIndices[d];
+    const firstCandle = candles[dayInfo.startIndex];
+    const lastCandle = candles[dayInfo.endIndex];
+
+    // Day Separator line
+    verticals.push({
+      id: `day_sep_${d}`,
+      time: firstCandle.time,
+      color: 'rgba(255, 255, 255, 0.45)',
+      label: dayInfo.dayName,
+      lineStyle: 'dotted',
+      isDaySeparator: true,
+    });
+
+    // Compute this day's high & low
+    let dayH = firstCandle.high;
+    let dayL = firstCandle.low;
+    let dayO = firstCandle.open;
+
+    for (let i = dayInfo.startIndex; i <= dayInfo.endIndex; i++) {
+      dayH = Math.max(dayH, candles[i].high);
+      dayL = Math.min(dayL, candles[i].low);
+    }
+
+    // Previous Day Midpoint & Levels (for subsequent days)
+    if (prevDayHigh > 0 && prevDayLow > 0 && settings.dhl) {
+      const pdm = (prevDayHigh + prevDayLow) / 2;
+      rays.push({
+        id: `pdm_${d}`,
+        price: pdm,
+        startTime: firstCandle.time,
+        endTime: lastCandle.time,
+        color: '#38bdf8',
+        label: 'PDM',
+        lineStyle: 'dotted',
+        isMitigated: false,
+      });
+
+      rays.push({
+        id: `pdl_${d}`,
+        price: prevDayLow,
+        startTime: firstCandle.time,
+        endTime: lastCandle.time,
+        color: '#2563eb',
+        label: 'PDL',
+        lineStyle: 'solid',
+        isMitigated: false,
+      });
+
+      if (d === dayIndices.length - 1) {
+        axisPriceLines.push({ price: pdm, color: '#38bdf8', title: 'PDM', lineStyle: 1 });
+        axisPriceLines.push({ price: prevDayLow, color: '#2563eb', title: 'PDL', lineStyle: 0 });
+      }
+    }
+
+    // PMM (Month Midpoint)
+    if (prevMonthHigh > 0 && prevMonthLow > 0 && settings.mmid) {
+      const pmm = (prevMonthHigh + prevMonthLow) / 2;
+      rays.push({
+        id: `pmm_${d}`,
+        price: pmm,
+        startTime: firstCandle.time,
+        endTime: lastCandle.time,
+        color: '#ef4444',
+        label: 'PMM',
+        lineStyle: 'dotted',
+        isMitigated: false,
+      });
+      if (d === dayIndices.length - 1) {
+        axisPriceLines.push({ price: pmm, color: '#ef4444', title: 'PMM', lineStyle: 1 });
+      }
+    }
+
+    prevMonthHigh = Math.max(prevMonthHigh, dayH);
+    prevMonthLow = prevMonthLow === 0 ? dayL : Math.min(prevMonthLow, dayL);
+
+    // Opening Prices for this day
+    if (settings.showOpens) {
+      if (settings.midnightOpen) {
+        rays.push({
+          id: `midnight_${d}`,
+          price: dayO,
+          startTime: firstCandle.time,
+          endTime: lastCandle.time,
+          color: '#c084fc',
+          label: 'Midnight',
+          lineStyle: 'dashed',
+          isMitigated: false,
+        });
+      }
+
+      let open830Candle: Candle | null = null;
+      let open930Candle: Candle | null = null;
+      let lndnStartCandle: Candle | null = null;
+      let nyStartCandle: Candle | null = null;
+
+      for (let i = dayInfo.startIndex; i <= dayInfo.endIndex; i++) {
+        const c = candles[i];
+        const nyTime = new Date((c.time + nyOffsetSec) * 1000);
+        const timeOfDayMin = nyTime.getUTCHours() * 60 + nyTime.getUTCMinutes();
+
+        if (timeOfDayMin >= 120 && !lndnStartCandle) lndnStartCandle = c;
+        if (timeOfDayMin >= 510 && !open830Candle) open830Candle = c;
+        if (timeOfDayMin >= 570 && !open930Candle) open930Candle = c;
+        if (timeOfDayMin >= 570 && !nyStartCandle) nyStartCandle = c;
+      }
+
+      if (lndnStartCandle) {
+        verticals.push({
+          id: `lndn_vert_${d}`,
+          time: lndnStartCandle.time,
+          color: '#c084fc',
+          lineStyle: 'dotted',
+        });
+      }
+
+      if (nyStartCandle) {
+        verticals.push({
+          id: `ny_vert_${d}`,
+          time: nyStartCandle.time,
+          color: '#089981',
+          lineStyle: 'dotted',
+        });
+      }
+
+      if (open830Candle && settings.open830) {
+        rays.push({
+          id: `open830_${d}`,
+          price: open830Candle.open,
+          startTime: open830Candle.time,
+          endTime: lastCandle.time,
+          color: '#c084fc',
+          label: 'NY OPEN',
+          lineStyle: 'dashed',
+          isMitigated: false,
+        });
+        if (d === dayIndices.length - 1) {
+          axisPriceLines.push({ price: open830Candle.open, color: '#c084fc', title: 'NY OPEN', lineStyle: 2 });
+        }
+      }
+
+      if (open930Candle && settings.open930) {
+        rays.push({
+          id: `open930_${d}`,
+          price: open930Candle.open,
+          startTime: open930Candle.time,
+          endTime: lastCandle.time,
+          color: '#c084fc',
+          label: 'NY INDICES',
+          lineStyle: 'dashed',
+          isMitigated: false,
+        });
+        if (d === dayIndices.length - 1) {
+          axisPriceLines.push({ price: open930Candle.open, color: '#c084fc', title: 'NY INDICES', lineStyle: 2 });
+        }
+      }
+    }
+
+    prevDayHigh = dayH;
+    prevDayLow = dayL;
+  }
+
+  // 2. Killzones: Asia (20:00-00:00), London (02:00-05:00), NYAM (09:30-11:00)
+  const kzDefs = [
+    { name: 'ASIA', startMin: 1200, endMin: 0, color: '#3b82f6' },
+    { name: 'LNDN', startMin: 120, endMin: 300, color: '#facc15' },
+    { name: 'NYAM', startMin: 570, endMin: 660, color: '#10b981' },
+  ];
+
+  kzDefs.forEach(({ name, startMin, endMin, color }) => {
+    let inSession = false;
+    let sStartIdx = -1;
+    let sEndIdx = -1;
+    let sHi = 0;
+    let sLo = Infinity;
+
+    for (let i = 0; i < candles.length; i++) {
+      const c = candles[i];
+      const nyTime = new Date((c.time + nyOffsetSec) * 1000);
+      const timeOfDayMin = nyTime.getUTCHours() * 60 + nyTime.getUTCMinutes();
+      const inSess = isInSession(timeOfDayMin, startMin, endMin);
+
+      if (inSess) {
+        if (!inSession) {
+          inSession = true;
+          sStartIdx = i;
+          sHi = c.high;
+          sLo = c.low;
+        } else {
+          sHi = Math.max(sHi, c.high);
+          sLo = Math.min(sLo, c.low);
+        }
+        sEndIdx = i;
+      } else if (inSession) {
+        inSession = false;
+
+        if (sHi > 0 && sLo < Infinity) {
+          let hiMitIdx = candles.length - 1;
+          let loMitIdx = candles.length - 1;
+          let hiMit = false;
+          let loMit = false;
+
+          for (let j = sEndIdx + 1; j < candles.length; j++) {
+            if (!hiMit && candles[j].high > sHi) {
+              hiMit = true;
+              hiMitIdx = j;
+            }
+            if (!loMit && candles[j].low < sLo) {
+              loMit = true;
+              loMitIdx = j;
+            }
+            if (hiMit && loMit) break;
+          }
+
+          rays.push({
+            id: `${name}_hi_${sStartIdx}`,
+            price: sHi,
+            startTime: candles[sEndIdx].time,
+            endTime: candles[hiMitIdx].time,
+            color,
+            label: `${name} High`,
+            lineStyle: 'solid',
+            isMitigated: hiMit,
+          });
+
+          rays.push({
+            id: `${name}_lo_${sStartIdx}`,
+            price: sLo,
+            startTime: candles[sEndIdx].time,
+            endTime: candles[loMitIdx].time,
+            color,
+            label: `${name} Low`,
+            lineStyle: 'solid',
+            isMitigated: loMit,
+          });
+
+          if (!hiMit) {
+            axisPriceLines.push({ price: sHi, color, title: `${name} High`, lineStyle: 0 });
+          }
+          if (!loMit) {
+            axisPriceLines.push({ price: sLo, color, title: `${name} Low`, lineStyle: 0 });
+          }
+        }
+      }
+    }
+  });
+
+  return { rays, verticals, axisPriceLines };
+}

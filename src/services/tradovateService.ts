@@ -577,7 +577,7 @@ export class TradovateService {
 export async function fetchRealMNQKlines(timeframe: Timeframe): Promise<Candle[]> {
   try {
     let interval = '1m';
-    let range = '1d';
+    let range = '5d';
     if (timeframe === '5m') { interval = '5m'; range = '5d'; }
     else if (timeframe === '15m') { interval = '15m'; range = '5d'; }
     else if (timeframe === '1h') { interval = '1h'; range = '1mo'; }

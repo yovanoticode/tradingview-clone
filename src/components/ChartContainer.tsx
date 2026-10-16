@@ -20,6 +20,7 @@ import {
   calculateEMA,
   calculateSMA,
   calculateICTStats,
+  calculateICTVisualElements,
 } from '../services/indicators';
 import type { PinePlot } from '../services/pineEngine';
 import { Minus, Plus, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
@@ -76,6 +77,121 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     if (!indicators.ictKillzones || !ictSettings?.showDataTable) return null;
     return calculateICTStats(candles, ictSettings);
   }, [candles, ictSettings, indicators.ictKillzones]);
+
+  const ictVisualData = useMemo(() => {
+    if (!indicators.ictKillzones) return null;
+    return calculateICTVisualElements(candles, ictSettings);
+  }, [candles, ictSettings, indicators.ictKillzones]);
+
+  const [overlayItems, setOverlayItems] = useState<{
+    lines: { id: string; x1: number; y1: number; x2: number; y2: number; color: string; strokeDasharray?: string }[];
+    texts: { id: string; x: number; y: number; text: string; color: string }[];
+    verticals: { id: string; x: number; y1: number; y2: number; color: string; label?: string; isDaySeparator?: boolean }[];
+  }>({ lines: [], texts: [], verticals: [] });
+
+  const [overlayTick, setOverlayTick] = useState(0);
+  const triggerOverlayUpdate = () => {
+    setOverlayTick((t) => (t + 1) % 1000000);
+  };
+
+  const ictPriceLinesRef = useRef<any[]>([]);
+
+  // Update right axis badges for ICT levels
+  useEffect(() => {
+    if (!mainSeriesRef.current) return;
+    ictPriceLinesRef.current.forEach((pl) => {
+      try {
+        mainSeriesRef.current?.removePriceLine(pl);
+      } catch {}
+    });
+    ictPriceLinesRef.current = [];
+
+    if (indicators.ictKillzones && ictVisualData) {
+      ictVisualData.axisPriceLines.forEach((item) => {
+        try {
+          const pl = mainSeriesRef.current?.createPriceLine({
+            price: item.price,
+            color: item.color,
+            lineWidth: 1,
+            lineStyle: item.lineStyle,
+            axisLabelVisible: true,
+            title: item.title,
+          });
+          if (pl) ictPriceLinesRef.current.push(pl);
+        } catch {}
+      });
+    }
+  }, [ictVisualData, indicators.ictKillzones]);
+
+  // Compute exact pixel coordinates for SVG rays, labels, and day separators
+  useEffect(() => {
+    if (!chartRef.current || !mainSeriesRef.current || !indicators.ictKillzones || !ictVisualData) {
+      setOverlayItems({ lines: [], texts: [], verticals: [] });
+      return;
+    }
+    const timeScale = chartRef.current.timeScale();
+    const mainSeries = mainSeriesRef.current;
+    const container = chartContainerRef.current;
+    if (!container) return;
+    const height = container.clientHeight || 500;
+    const width = container.clientWidth || 800;
+
+    const lines: any[] = [];
+    const texts: any[] = [];
+    const verticals: any[] = [];
+
+    ictVisualData.rays.forEach((ray) => {
+      const x1 = timeScale.timeToCoordinate(ray.startTime as any);
+      const x2 = timeScale.timeToCoordinate(ray.endTime as any);
+      const y = mainSeries.priceToCoordinate(ray.price);
+
+      if (y !== null && (x1 !== null || x2 !== null)) {
+        const startX = x1 !== null ? x1 : 0;
+        const endX = x2 !== null ? x2 : width;
+
+        if (endX >= 0 && startX <= width) {
+          const finalX1 = Math.max(0, startX);
+          const finalX2 = Math.min(width, Math.max(endX, startX + 25));
+
+          lines.push({
+            id: ray.id,
+            x1: finalX1,
+            y1: y,
+            x2: finalX2,
+            y2: y,
+            color: ray.color,
+            strokeDasharray: ray.lineStyle === 'dashed' ? '5 4' : ray.lineStyle === 'dotted' ? '2 3' : undefined,
+          });
+
+          const textX = endX <= width - 75 ? endX + 6 : Math.max(8, startX + 6);
+          texts.push({
+            id: `${ray.id}_txt`,
+            x: textX,
+            y: y - 4,
+            text: ray.label,
+            color: ray.color,
+          });
+        }
+      }
+    });
+
+    ictVisualData.verticals.forEach((v) => {
+      const x = timeScale.timeToCoordinate(v.time as any);
+      if (x !== null && x >= 0 && x <= width) {
+        verticals.push({
+          id: v.id,
+          x,
+          y1: 0,
+          y2: height,
+          color: v.color,
+          label: v.label,
+          isDaySeparator: v.isDaySeparator,
+        });
+      }
+    });
+
+    setOverlayItems({ lines, texts, verticals });
+  }, [overlayTick, ictVisualData, indicators.ictKillzones, candles]);
 
   // 1. Create and manage chart instance
   useEffect(() => {
@@ -163,18 +279,27 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       }
     });
 
+    // Time scale subscription for custom SVG overlay
+    chart.timeScale().subscribeVisibleTimeRangeChange(triggerOverlayUpdate);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(triggerOverlayUpdate);
+
     // Resize Observer
     const resizeObserver = new ResizeObserver((entries) => {
       if (!entries || entries.length === 0 || !chartRef.current) return;
       const { width: w, height: h } = entries[0].contentRect;
       if (w > 0 && h > 0) {
         chartRef.current.applyOptions({ width: w, height: h });
+        triggerOverlayUpdate();
       }
     });
 
     resizeObserver.observe(container);
 
     return () => {
+      try {
+        chart.timeScale().unsubscribeVisibleTimeRangeChange(triggerOverlayUpdate);
+        chart.timeScale().unsubscribeVisibleLogicalRangeChange(triggerOverlayUpdate);
+      } catch {}
       resizeObserver.disconnect();
       mainSeriesRef.current = null;
       volumeSeriesRef.current = null;
@@ -586,6 +711,79 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
       {/* Main Lightweight Charts Canvas */}
       <div ref={chartContainerRef} className="chart-canvas" />
+
+      {/* SVG Overlay for ICT Killzones Rays & Day Labels */}
+      {indicators.ictKillzones && (
+        <svg
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            zIndex: 3,
+            overflow: 'hidden',
+          }}
+        >
+          {/* Vertical Session & Day Separator Lines */}
+          {overlayItems.verticals.map((v) => (
+            <g key={v.id}>
+              <line
+                x1={v.x}
+                y1={0}
+                x2={v.x}
+                y2={v.y2}
+                stroke={v.color}
+                strokeWidth={v.isDaySeparator ? 1.5 : 1}
+                strokeDasharray={v.isDaySeparator ? '4 4' : '2 3'}
+              />
+              {v.label && (
+                <text
+                  x={v.x + 8}
+                  y={v.y2 - 24}
+                  fill="#ffffff"
+                  fontSize="12"
+                  fontWeight="bold"
+                  letterSpacing="0.8px"
+                  fontFamily="-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, sans-serif"
+                >
+                  {v.label}
+                </text>
+              )}
+            </g>
+          ))}
+
+          {/* Horizontal Killzone & Open Rays */}
+          {overlayItems.lines.map((line) => (
+            <line
+              key={line.id}
+              x1={line.x1}
+              y1={line.y1}
+              x2={line.x2}
+              y2={line.y2}
+              stroke={line.color}
+              strokeWidth={1.5}
+              strokeDasharray={line.strokeDasharray}
+            />
+          ))}
+
+          {/* Text Labels along each ray */}
+          {overlayItems.texts.map((t) => (
+            <text
+              key={t.id}
+              x={t.x}
+              y={t.y}
+              fill={t.color}
+              fontSize="11"
+              fontWeight="700"
+              fontFamily="-apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, sans-serif"
+            >
+              {t.text}
+            </text>
+          ))}
+        </svg>
+      )}
 
       {/* ICT Range Data & Pivots HUD Table */}
       {indicators.ictKillzones && ictSettings?.showDataTable && ictStats && ictStats.sessions.length > 0 && (
