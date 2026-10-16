@@ -1,0 +1,178 @@
+//@version=5
+indicator("ICT Killzones & Pivots [Pro]", "ICT KZ [Pro]", overlay = true, max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500)
+
+// ==========================================
+// 1. INPUTS & CONFIGURATION
+// ==========================================
+var g_kz = "ICT Killzones (Horario New York)"
+tz = input.string("America/New_York", "Zona Horaria", group = g_kz)
+
+// Sesiones
+show_asia = input.bool(true, "Asia Session (20:00 - 00:00)", group = g_kz)
+asia_sess = input.session("2000-0000", "", inline = "asia", group = g_kz)
+asia_col  = input.color(color.new(#2962ff, 85), "", inline = "asia", group = g_kz)
+
+show_lndn = input.bool(true, "London Session (02:00 - 05:00)", group = g_kz)
+lndn_sess = input.session("0200-0500", "", inline = "lndn", group = g_kz)
+lndn_col  = input.color(color.new(#f23645, 85), "", inline = "lndn", group = g_kz)
+
+show_nyam = input.bool(true, "NY AM Session (09:30 - 11:00)", group = g_kz)
+nyam_sess = input.session("0930-1100", "", inline = "nyam", group = g_kz)
+nyam_col  = input.color(color.new(#089981, 85), "", inline = "nyam", group = g_kz)
+
+show_nypm = input.bool(true, "NY PM Session (13:30 - 16:00)", group = g_kz)
+nypm_sess = input.session("1330-1600", "", inline = "nypm", group = g_kz)
+nypm_col  = input.color(color.new(#ab47bc, 85), "", inline = "nypm", group = g_kz)
+
+var g_piv = "Pivotes & Mitigación"
+show_pivots   = input.bool(true, "Extender High/Low hasta mitigación", group = g_piv)
+show_midpoint = input.bool(true, "Mostrar Línea 50% Equilibrium (Midpoint)", group = g_piv)
+line_width    = input.int(1, "Grosor de Líneas", minval = 1, maxval = 4, group = g_piv)
+
+var g_open = "Precios de Apertura Clave (ICT Opens)"
+show_midnight = input.bool(true, "NY Midnight Open (00:00)", group = g_open)
+col_midnight  = input.color(color.yellow, "", inline = "mid", group = g_open)
+show_open830  = input.bool(true, "8:30 AM News Open", group = g_open)
+col_open830   = input.color(color.orange, "", inline = "830", group = g_open)
+show_open930  = input.bool(true, "9:30 AM Equity Open", group = g_open)
+col_open930   = input.color(color.aqua, "", inline = "930", group = g_open)
+
+var g_htf = "Niveles Mayores (PDH / PDL)"
+show_pdhl = input.bool(true, "Previous Day High / Low (PDH/PDL)", group = g_htf)
+col_pdhl  = input.color(color.white, "", inline = "pdhl", group = g_htf)
+show_table = input.bool(true, "Mostrar Tabla de Rangos ICT", group = "Estadísticas")
+
+// ==========================================
+// 2. HIGHER TIMEFRAME (PDH, PDL, MIDNIGHT OPEN)
+// ==========================================
+[pd_high, pd_low] = request.security(syminfo.tickerid, "D", [high[1], low[1]], lookahead = barmerge.lookahead_on)
+
+plot(show_pdhl ? pd_high : na, "PDH (Prev Day High)", color = col_pdhl, style = plot.style_linebr, linewidth = 2)
+plot(show_pdhl ? pd_low : na, "PDL (Prev Day Low)", color = col_pdhl, style = plot.style_linebr, linewidth = 2)
+
+// ==========================================
+// 3. ESTRUCTURAS DE DATOS DE SESIÓN
+// ==========================================
+type SessionZone
+    box   b
+    line  hi_line
+    line  lo_line
+    line  mid_line
+    float hi
+    float lo
+    bool  active
+    bool  mitigated_hi
+    bool  mitigated_lo
+
+process_session(string sess_str, bool enabled, color clr, string name) =>
+    var SessionZone sz = SessionZone.new(na, na, na, na, na, na, false, false, false)
+    in_session = not na(time(timeframe.period, sess_str + ":1234567", tz))
+
+    if in_session
+        if not sz.active
+            // Inicio de sesión
+            sz.active := true
+            sz.hi := high
+            sz.lo := low
+            sz.mitigated_hi := false
+            sz.mitigated_lo := false
+            if enabled
+                sz.b := box.new(left = bar_index, top = high, right = bar_index, bottom = low, 
+                                border_color = color.new(clr, 30), bgcolor = clr, border_style = line.style_dashed)
+        else
+            // Durante la sesión: actualizar rango
+            sz.hi := math.max(sz.hi, high)
+            sz.lo := math.min(sz.lo, low)
+            if not na(sz.b)
+                box.set_top(sz.b, sz.hi)
+                box.set_bottom(sz.b, sz.lo)
+                box.set_right(sz.b, bar_index)
+    else
+        if sz.active
+            // Fin de sesión: crear líneas de pivote extendidas
+            sz.active := false
+            if not na(sz.b)
+                box.set_right(sz.b, bar_index)
+            if show_pivots and enabled
+                solid_col = color.new(clr, 0)
+                sz.hi_line := line.new(bar_index, sz.hi, bar_index + 1, sz.hi, color = solid_col, width = line_width)
+                sz.lo_line := line.new(bar_index, sz.lo, bar_index + 1, sz.lo, color = solid_col, width = line_width)
+                if show_midpoint
+                    mid = (sz.hi + sz.lo) / 2
+                    sz.mid_line := line.new(bar_index, mid, bar_index + 1, mid, color = color.new(solid_col, 40), width = 1, style = line.style_dotted)
+
+    // Extender pivotes hasta mitigación
+    if not sz.active and show_pivots
+        if not na(sz.hi_line) and not sz.mitigated_hi
+            if high > sz.hi
+                sz.mitigated_hi := true
+                line.set_x2(sz.hi_line, bar_index)
+            else
+                line.set_x2(sz.hi_line, bar_index + 1)
+
+        if not na(sz.lo_line) and not sz.mitigated_lo
+            if low < sz.lo
+                sz.mitigated_lo := true
+                line.set_x2(sz.lo_line, bar_index)
+            else
+                line.set_x2(sz.lo_line, bar_index + 1)
+
+        if not na(sz.mid_line)
+            line.set_x2(sz.mid_line, bar_index + 1)
+
+    [sz.hi, sz.lo, sz.hi - sz.lo]
+
+// Procesar las 4 Killzones principales
+[asia_h, asia_l, asia_rng] = process_session(asia_sess, show_asia, asia_col, "Asia")
+[lndn_h, lndn_l, lndn_rng] = process_session(lndn_sess, show_lndn, lndn_col, "London")
+[nyam_h, nyam_l, nyam_rng] = process_session(nyam_sess, show_nyam, nyam_col, "NY AM")
+[nypm_h, nypm_l, nypm_rng] = process_session(nypm_sess, show_nypm, nypm_col, "NY PM")
+
+// ==========================================
+// 4. NIVELES DE APERTURA (MIDNIGHT, 08:30, 09:30)
+// ==========================================
+get_open_price(string t_str) =>
+    var float op = na
+    var line l = na
+    is_open_bar = not na(time(timeframe.period, t_str + "-" + t_str + ":1234567", tz)) and na(time(timeframe.period, t_str + "-" + t_str + ":1234567", tz)[1])
+    if is_open_bar
+        op := open
+    op
+
+midnight_p = get_open_price("0000")
+open830_p  = get_open_price("0830")
+open930_p  = get_open_price("0930")
+
+plot(show_midnight ? midnight_p : na, "Midnight Open (00:00)", color = col_midnight, style = plot.style_linebr, linewidth = 1)
+plot(show_open830 ? open830_p : na, "8:30 AM Open", color = col_open830, style = plot.style_linebr, linewidth = 1)
+plot(show_open930 ? open930_p : na, "9:30 AM Equity Open", color = col_open930, style = plot.style_linebr, linewidth = 2)
+
+// ==========================================
+// 5. TABLA DE RANGOS ICT
+// ==========================================
+if show_table and barstate.islast
+    var tbl = table.new(position.top_right, 4, 6, bgcolor = color.new(#131722, 10), border_color = #2a2e39, border_width = 1)
+    table.cell(tbl, 0, 0, "Sesión", text_color = color.white, text_size = size.small, bgcolor = #1e222d)
+    table.cell(tbl, 1, 0, "High", text_color = color.white, text_size = size.small, bgcolor = #1e222d)
+    table.cell(tbl, 2, 0, "Low", text_color = color.white, text_size = size.small, bgcolor = #1e222d)
+    table.cell(tbl, 3, 0, "Rango (Pts)", text_color = color.white, text_size = size.small, bgcolor = #1e222d)
+
+    table.cell(tbl, 0, 1, "Asia", text_color = #2962ff, text_size = size.small)
+    table.cell(tbl, 1, 1, str.tostring(asia_h, "#.##"), text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 2, 1, str.tostring(asia_l, "#.##"), text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 3, 1, str.tostring(asia_rng, "#.##"), text_color = color.yellow, text_size = size.small)
+
+    table.cell(tbl, 0, 2, "London", text_color = #f23645, text_size = size.small)
+    table.cell(tbl, 1, 2, str.tostring(lndn_h, "#.##"), text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 2, 2, str.tostring(lndn_l, "#.##"), text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 3, 2, str.tostring(lndn_rng, "#.##"), text_color = color.yellow, text_size = size.small)
+
+    table.cell(tbl, 0, 3, "NY AM", text_color = #089981, text_size = size.small)
+    table.cell(tbl, 1, 3, str.tostring(nyam_h, "#.##"), text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 2, 3, str.tostring(nyam_l, "#.##"), text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 3, 3, str.tostring(nyam_rng, "#.##"), text_color = color.yellow, text_size = size.small)
+
+    table.cell(tbl, 0, 4, "NY PM", text_color = #ab47bc, text_size = size.small)
+    table.cell(tbl, 1, 4, str.tostring(nypm_h, "#.##"), text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 2, 4, str.tostring(nypm_l, "#.##"), text_color = color.gray, text_size = size.small)
+    table.cell(tbl, 3, 4, str.tostring(nypm_rng, "#.##"), text_color = color.yellow, text_size = size.small)

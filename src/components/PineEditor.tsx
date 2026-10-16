@@ -21,6 +21,24 @@ interface PineEditorProps {
 }
 
 const TEMPLATES: { [key: string]: string } = {
+  ict_killzones: `//@version=5
+indicator("ICT Killzones & Pivots [Pro]", "ICT KZ [Pro]", overlay = true, max_boxes_count = 500, max_lines_count = 500)
+
+// 1. Horarios de Sesiones ICT (New York Time)
+// - Asia: 20:00 - 00:00
+// - London: 02:00 - 05:00
+// - NY AM (Judas / AM Trend): 09:30 - 11:00
+// - NY PM (Macro): 13:30 - 16:00
+
+// 2. Precios de Apertura Clave (ICT Opens)
+// - NY Midnight Open (00:00)
+// - 08:30 AM News Open
+// - 09:30 AM Equity Open
+
+// 3. Niveles Mayores
+// - Previous Day High (PDH) & Low (PDL)
+// - 50% Equilibrium (Midpoint de Sesión)
+`,
   crossover: `//@version=5
 strategy("Estrategia Cruce de Medias", overlay=true, margin_long=100)
 
@@ -73,7 +91,7 @@ if (rsiValue > 70)
 export const PineEditor: React.FC<PineEditorProps> = ({ candles, onPlotsUpdate }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'editor' | 'tester' | 'console'>('editor');
-  const [code, setCode] = useState(TEMPLATES.crossover);
+  const [code, setCode] = useState(TEMPLATES.ict_killzones);
   const [consoleMsg, setConsoleMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [backtestResult, setBacktestResult] = useState<PineExecutionOutput['backtest'] | null>(null);
 
@@ -141,8 +159,9 @@ export const PineEditor: React.FC<PineEditorProps> = ({ candles, onPlotsUpdate }
               <select
                 className="template-select"
                 onChange={(e) => setCode(TEMPLATES[e.target.value] || code)}
-                defaultValue="crossover"
+                defaultValue="ict_killzones"
               >
+                <option value="ict_killzones">ICT Killzones & Pivots (Asia, London, NY, Opens)</option>
                 <option value="crossover">Estrategia Cruce de Medias (SMA 9/21)</option>
                 <option value="double_ema">Indicador Doble EMA (20/50)</option>
                 <option value="rsi_strategy">Estrategia RSI Reversión</option>

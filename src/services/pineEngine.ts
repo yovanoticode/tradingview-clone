@@ -39,6 +39,103 @@ export function executePineScript(code: string, candles: Candle[]): PineExecutio
     // Check if script is a strategy
     const isStrategy = code.includes('strategy(') || code.includes('strategy.entry');
 
+    // ICT Killzones & Session Levels detection
+    const isICT = code.toLowerCase().includes('killzone') || code.toLowerCase().includes('ict') || code.toLowerCase().includes('kzp');
+    if (isICT && candles.length > 0) {
+      const pdhData: { time: number; value: number }[] = [];
+      const pdlData: { time: number; value: number }[] = [];
+      const midnightData: { time: number; value: number }[] = [];
+      const open930Data: { time: number; value: number }[] = [];
+      const lndnHiData: { time: number; value: number }[] = [];
+      const lndnLoData: { time: number; value: number }[] = [];
+      const nyamHiData: { time: number; value: number }[] = [];
+      const nyamLoData: { time: number; value: number }[] = [];
+
+      const nyOffsetSec = -4 * 3600; // EDT (New York)
+      let currentDay = -1;
+      let prevDayHigh = 0;
+      let prevDayLow = 0;
+      let dayHigh = 0;
+      let dayLow = 0;
+      let midnightOpen = 0;
+      let rthOpen = 0;
+      let lndnHigh = 0;
+      let lndnLow = Infinity;
+      let nyamHigh = 0;
+      let nyamLow = Infinity;
+
+      for (let i = 0; i < candles.length; i++) {
+        const c = candles[i];
+        const nyTime = new Date((c.time + nyOffsetSec) * 1000);
+        const day = nyTime.getUTCDate();
+        const hour = nyTime.getUTCHours();
+        const minute = nyTime.getUTCMinutes();
+        const timeOfDayMin = hour * 60 + minute;
+
+        if (day !== currentDay) {
+          if (currentDay !== -1) {
+            prevDayHigh = dayHigh;
+            prevDayLow = dayLow;
+          }
+          currentDay = day;
+          dayHigh = c.high;
+          dayLow = c.low;
+          midnightOpen = c.open;
+          rthOpen = 0;
+          lndnHigh = 0;
+          lndnLow = Infinity;
+          nyamHigh = 0;
+          nyamLow = Infinity;
+        } else {
+          dayHigh = Math.max(dayHigh, c.high);
+          dayLow = Math.min(dayLow, c.low);
+        }
+
+        if (midnightOpen > 0) {
+          midnightData.push({ time: c.time, value: midnightOpen });
+        }
+
+        if (timeOfDayMin >= 120 && timeOfDayMin <= 300) {
+          lndnHigh = Math.max(lndnHigh, c.high);
+          lndnLow = Math.min(lndnLow, c.low);
+        }
+        if (lndnHigh > 0 && lndnLow < Infinity && timeOfDayMin >= 120) {
+          lndnHiData.push({ time: c.time, value: lndnHigh });
+          lndnLoData.push({ time: c.time, value: lndnLow });
+        }
+
+        if (timeOfDayMin >= 570 && rthOpen === 0) {
+          rthOpen = c.open;
+        }
+        if (rthOpen > 0) {
+          open930Data.push({ time: c.time, value: rthOpen });
+        }
+
+        if (timeOfDayMin >= 570 && timeOfDayMin <= 660) {
+          nyamHigh = Math.max(nyamHigh, c.high);
+          nyamLow = Math.min(nyamLow, c.low);
+        }
+        if (nyamHigh > 0 && nyamLow < Infinity && timeOfDayMin >= 570) {
+          nyamHiData.push({ time: c.time, value: nyamHigh });
+          nyamLoData.push({ time: c.time, value: nyamLow });
+        }
+
+        if (prevDayHigh > 0 && prevDayLow > 0) {
+          pdhData.push({ time: c.time, value: prevDayHigh });
+          pdlData.push({ time: c.time, value: prevDayLow });
+        }
+      }
+
+      if (pdhData.length > 0) plots.push({ id: 'ict_pdh', title: 'ICT PDH (Prev Day High)', color: '#ffffff', data: pdhData });
+      if (pdlData.length > 0) plots.push({ id: 'ict_pdl', title: 'ICT PDL (Prev Day Low)', color: '#9e9e9e', data: pdlData });
+      if (midnightData.length > 0) plots.push({ id: 'ict_midnight', title: 'ICT Midnight Open (00:00)', color: '#ffeb3b', data: midnightData });
+      if (open930Data.length > 0) plots.push({ id: 'ict_open930', title: 'ICT 9:30 AM Open', color: '#00e5ff', data: open930Data });
+      if (lndnHiData.length > 0) plots.push({ id: 'ict_lndn_h', title: 'LNDN High (02:00-05:00)', color: '#f23645', data: lndnHiData });
+      if (lndnLoData.length > 0) plots.push({ id: 'ict_lndn_l', title: 'LNDN Low (02:00-05:00)', color: '#f23645', data: lndnLoData });
+      if (nyamHiData.length > 0) plots.push({ id: 'ict_nyam_h', title: 'NY AM High (09:30-11:00)', color: '#089981', data: nyamHiData });
+      if (nyamLoData.length > 0) plots.push({ id: 'ict_nyam_l', title: 'NY AM Low (09:30-11:00)', color: '#089981', data: nyamLoData });
+    }
+
     // Extract plot statements: plot(ta.sma(close, 14), "SMA", color.blue) or plot(series)
     const smaMatches = [...code.matchAll(/plot\s*\(\s*(?:ta\.sma|sma)\s*\(\s*(?:close|src)?\s*,\s*(\d+)\s*\)/g)];
     const emaMatches = [...code.matchAll(/plot\s*\(\s*(?:ta\.ema|ema)\s*\(\s*(?:close|src)?\s*,\s*(\d+)\s*\)/g)];
