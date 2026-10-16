@@ -8,9 +8,11 @@ import {
   Activity, 
   Camera, 
   Maximize2, 
-  X
+  X,
+  Settings,
+  Sliders
 } from 'lucide-react';
-import type { ChartType, IndicatorConfig, Timeframe } from '../types';
+import type { ChartType, IndicatorConfig, Timeframe, ICTSettings } from '../types';
 
 interface HeaderProps {
   symbol: string;
@@ -21,6 +23,8 @@ interface HeaderProps {
   onSelectChartType: (type: ChartType) => void;
   indicators: IndicatorConfig;
   onToggleIndicator: (key: keyof IndicatorConfig) => void;
+  ictSettings: ICTSettings;
+  onUpdateIctSettings: (newSettings: Partial<ICTSettings>) => void;
   currentPrice: number;
   priceChange: number;
   onTakeSnapshot: () => void;
@@ -56,12 +60,15 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectChartType,
   indicators,
   onToggleIndicator,
+  ictSettings,
+  onUpdateIctSettings,
   currentPrice,
   priceChange,
   onTakeSnapshot,
 }) => {
   const [showSearch, setShowSearch] = useState(false);
   const [showIndicators, setShowIndicators] = useState(false);
+  const [showIctModal, setShowIctModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredSymbols = AVAILABLE_SYMBOLS.filter(
@@ -288,6 +295,216 @@ export const Header: React.FC<HeaderProps> = ({
               />
               <span>RSI 14 (Índice de Fuerza Relativa)</span>
             </label>
+
+            <div style={{ borderTop: '1px solid var(--tv-border)', margin: '4px 0' }} />
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label className="indicator-toggle" style={{ margin: 0, flex: 1 }}>
+                <input
+                  type="checkbox"
+                  checked={indicators.ictKillzones}
+                  onChange={() => onToggleIndicator('ictKillzones')}
+                />
+                <span style={{ fontWeight: 600, color: '#38bdf8' }}>ICT Killzones & Pivots [Pro]</span>
+              </label>
+              <button
+                className="tv-btn icon-btn"
+                title="Configurar parámetros de ICT Killzones"
+                style={{ padding: '2px 6px', height: '24px', marginLeft: '6px' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowIctModal(true);
+                }}
+              >
+                <Settings size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ICT Settings Modal */}
+      {showIctModal && (
+        <div className="modal-overlay" onClick={() => setShowIctModal(false)} style={{ zIndex: 120 }}>
+          <div
+            className="search-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px', padding: '18px 20px' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sliders size={18} color="#38bdf8" />
+                <span style={{ fontSize: '15px', fontWeight: 600, color: '#fff' }}>Parámetros ICT Killzones & Pivots</span>
+              </div>
+              <button className="close-btn" onClick={() => setShowIctModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '12px' }}>
+              <div style={{ color: '#94a3b8', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Sesiones & Killzones (Horario NY)
+              </div>
+
+              {/* Asia */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label className="indicator-toggle" style={{ margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={ictSettings.asia}
+                    onChange={(e) => onUpdateIctSettings({ asia: e.target.checked })}
+                  />
+                  <span>Asia Session (20:00 - 00:00)</span>
+                </label>
+                <input
+                  type="color"
+                  value={ictSettings.asiaColor}
+                  onChange={(e) => onUpdateIctSettings({ asiaColor: e.target.value })}
+                  style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                />
+              </div>
+
+              {/* London */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label className="indicator-toggle" style={{ margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={ictSettings.london}
+                    onChange={(e) => onUpdateIctSettings({ london: e.target.checked })}
+                  />
+                  <span>London Killzone (02:00 - 05:00)</span>
+                </label>
+                <input
+                  type="color"
+                  value={ictSettings.londonColor}
+                  onChange={(e) => onUpdateIctSettings({ londonColor: e.target.value })}
+                  style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                />
+              </div>
+
+              {/* NY AM */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label className="indicator-toggle" style={{ margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={ictSettings.nyam}
+                    onChange={(e) => onUpdateIctSettings({ nyam: e.target.checked })}
+                  />
+                  <span>NY AM Killzone (09:30 - 11:00)</span>
+                </label>
+                <input
+                  type="color"
+                  value={ictSettings.nyamColor}
+                  onChange={(e) => onUpdateIctSettings({ nyamColor: e.target.value })}
+                  style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                />
+              </div>
+
+              {/* NY PM */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label className="indicator-toggle" style={{ margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={ictSettings.nypm}
+                    onChange={(e) => onUpdateIctSettings({ nypm: e.target.checked })}
+                  />
+                  <span>NY PM Session (13:30 - 16:00)</span>
+                </label>
+                <input
+                  type="color"
+                  value={ictSettings.nypmColor}
+                  onChange={(e) => onUpdateIctSettings({ nypmColor: e.target.value })}
+                  style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                />
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--tv-border)', margin: '4px 0' }} />
+              <div style={{ color: '#94a3b8', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Aperturas & Niveles Clave
+              </div>
+
+              {/* Midnight */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label className="indicator-toggle" style={{ margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={ictSettings.midnightOpen}
+                    onChange={(e) => onUpdateIctSettings({ midnightOpen: e.target.checked })}
+                  />
+                  <span>Midnight Open (00:00 NY)</span>
+                </label>
+                <input
+                  type="color"
+                  value={ictSettings.midnightColor}
+                  onChange={(e) => onUpdateIctSettings({ midnightColor: e.target.value })}
+                  style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                />
+              </div>
+
+              {/* 08:30 */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label className="indicator-toggle" style={{ margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={ictSettings.open830}
+                    onChange={(e) => onUpdateIctSettings({ open830: e.target.checked })}
+                  />
+                  <span>NY 08:30 Open (Noticias)</span>
+                </label>
+                <input
+                  type="color"
+                  value={ictSettings.open830Color}
+                  onChange={(e) => onUpdateIctSettings({ open830Color: e.target.value })}
+                  style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                />
+              </div>
+
+              {/* 09:30 */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label className="indicator-toggle" style={{ margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={ictSettings.open930}
+                    onChange={(e) => onUpdateIctSettings({ open930: e.target.checked })}
+                  />
+                  <span>Equities 09:30 Open</span>
+                </label>
+                <input
+                  type="color"
+                  value={ictSettings.open930Color}
+                  onChange={(e) => onUpdateIctSettings({ open930Color: e.target.value })}
+                  style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                />
+              </div>
+
+              {/* PDH/PDL */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label className="indicator-toggle" style={{ margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={ictSettings.pdhl}
+                    onChange={(e) => onUpdateIctSettings({ pdhl: e.target.checked })}
+                  />
+                  <span>PDH & PDL (Prev Day High/Low)</span>
+                </label>
+                <input
+                  type="color"
+                  value={ictSettings.pdhlColor}
+                  onChange={(e) => onUpdateIctSettings({ pdhlColor: e.target.value })}
+                  style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: '18px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                className="tv-btn primary-btn"
+                style={{ padding: '6px 16px', fontSize: '12px' }}
+                onClick={() => setShowIctModal(false)}
+              >
+                Aceptar
+              </button>
+            </div>
           </div>
         </div>
       )}

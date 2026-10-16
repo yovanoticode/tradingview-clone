@@ -20,6 +20,27 @@ export interface IndicatorConfig {
   bollinger: boolean;
   rsi: boolean;
   volume: boolean;
+  ictKillzones: boolean;
+}
+
+export interface ICTSettings {
+  enabled: boolean;
+  asia: boolean;
+  asiaColor: string;
+  london: boolean;
+  londonColor: string;
+  nyam: boolean;
+  nyamColor: string;
+  nypm: boolean;
+  nypmColor: string;
+  midnightOpen: boolean;
+  midnightColor: string;
+  open830: boolean;
+  open830Color: string;
+  open930: boolean;
+  open930Color: string;
+  pdhl: boolean;
+  pdhlColor: string;
 }
 
 export interface WatchlistItem {

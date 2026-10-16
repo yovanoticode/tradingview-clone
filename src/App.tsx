@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Header } from './components/Header';
 import { LeftToolbar } from './components/LeftToolbar';
 import { ChartContainer } from './components/ChartContainer';
@@ -6,10 +6,11 @@ import { RightSidebar } from './components/RightSidebar';
 import { BottomBar } from './components/BottomBar';
 import { TradovatePanel } from './components/TradovatePanel';
 import { PineEditor } from './components/PineEditor';
-import type { Candle, ChartType, DrawingTool, IndicatorConfig, Timeframe } from './types';
+import type { Candle, ChartType, DrawingTool, IndicatorConfig, Timeframe, ICTSettings } from './types';
 import type { PinePlot } from './services/pineEngine';
 import { fetchHistoricalKlines, subscribeToKlines } from './services/binanceService';
 import { TradovateService, fetchRealMNQKlines } from './services/tradovateService';
+import { calculateICTPlots, DEFAULT_ICT_SETTINGS } from './services/indicators';
 import './index.css';
 
 export const App: React.FC = () => {
@@ -23,7 +24,25 @@ export const App: React.FC = () => {
     ema200: false,
     bollinger: false,
     rsi: false,
+    ictKillzones: true,
   });
+
+  const [ictSettings, setIctSettings] = useState<ICTSettings>(() => {
+    try {
+      const saved = localStorage.getItem('ict_settings');
+      return saved ? JSON.parse(saved) : DEFAULT_ICT_SETTINGS;
+    } catch {
+      return DEFAULT_ICT_SETTINGS;
+    }
+  });
+
+  const updateIctSettings = (newSettings: Partial<ICTSettings>) => {
+    setIctSettings((prev) => {
+      const updated = { ...prev, ...newSettings };
+      localStorage.setItem('ict_settings', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   const [activeTool, setActiveTool] = useState<DrawingTool>('crosshair');
   const [magnetMode, setMagnetMode] = useState(false);
@@ -34,6 +53,16 @@ export const App: React.FC = () => {
   const [currentPrice, setCurrentPrice] = useState(0);
   const [priceChange, setPriceChange] = useState(0);
   const [customPlots, setCustomPlots] = useState<PinePlot[]>([]);
+
+  // Computed active plots combining Pine Editor and ICT Killzones
+  const activePlots = useMemo(() => {
+    const list = [...customPlots];
+    if (indicators.ictKillzones) {
+      const ictPlots = calculateICTPlots(candles, ictSettings);
+      list.push(...ictPlots);
+    }
+    return list;
+  }, [customPlots, indicators.ictKillzones, ictSettings, candles]);
 
   // Load historical data and subscribe to live ticks
   useEffect(() => {
@@ -154,6 +183,8 @@ export const App: React.FC = () => {
         onSelectChartType={setChartType}
         indicators={indicators}
         onToggleIndicator={toggleIndicator}
+        ictSettings={ictSettings}
+        onUpdateIctSettings={updateIctSettings}
         currentPrice={currentPrice}
         priceChange={priceChange}
         onTakeSnapshot={handleTakeSnapshot}
@@ -180,7 +211,7 @@ export const App: React.FC = () => {
             symbol={symbol}
             activeTool={activeTool}
             clearTrigger={clearTrigger}
-            customPlots={customPlots}
+            customPlots={activePlots}
           />
         </main>
 
