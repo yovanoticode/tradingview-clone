@@ -169,6 +169,10 @@ export const App: React.FC = () => {
 
   const [activeTool, setActiveTool] = useState<DrawingTool>('crosshair');
   const [magnetMode, setMagnetMode] = useState(false);
+  const [stayInDrawingMode, setStayInDrawingMode] = useState(false);
+  const [lockDrawings, setLockDrawings] = useState(false);
+  const [hideDrawings, setHideDrawings] = useState(false);
+  const [favoritesActive, setFavoritesActive] = useState(false);
   const [clearTrigger, setClearTrigger] = useState(0);
   const [activeRange, setActiveRange] = useState('1D');
   const [timezone, setTimezone] = useState<ChartTimezone>(() => {
@@ -522,6 +526,14 @@ export const App: React.FC = () => {
           magnetMode={magnetMode}
           onToggleMagnet={() => setMagnetMode(!magnetMode)}
           onClearDrawings={() => setClearTrigger((c) => c + 1)}
+          stayInDrawingMode={stayInDrawingMode}
+          onToggleStayInDrawingMode={() => setStayInDrawingMode(!stayInDrawingMode)}
+          lockDrawings={lockDrawings}
+          onToggleLockDrawings={() => setLockDrawings(!lockDrawings)}
+          hideDrawings={hideDrawings}
+          onToggleHideDrawings={() => setHideDrawings(!hideDrawings)}
+          favoritesActive={favoritesActive}
+          onToggleFavorites={() => setFavoritesActive(!favoritesActive)}
         />
 
         <main className="tv-chart-viewport">

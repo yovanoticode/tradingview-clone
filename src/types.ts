@@ -13,7 +13,34 @@ export type ChartType = 'candlestick' | 'line' | 'area' | 'bar';
 
 export type ChartTimezone = 'America/Bogota' | 'America/New_York' | 'UTC';
 
-export type DrawingTool = 'crosshair' | 'trendline' | 'horizontal' | 'measure' | 'none';
+export type DrawingTool =
+  | 'crosshair'
+  | 'dot'
+  | 'arrow'
+  | 'eraser'
+  | 'trendline'
+  | 'ray'
+  | 'horizontal'
+  | 'vertical'
+  | 'parallel_channel'
+  | 'fibonacci'
+  | 'fib_extension'
+  | 'pattern_xabcd'
+  | 'head_and_shoulders'
+  | 'elliott_wave'
+  | 'long_position'
+  | 'short_position'
+  | 'price_range'
+  | 'brush'
+  | 'rectangle'
+  | 'circle'
+  | 'path'
+  | 'text'
+  | 'note'
+  | 'emoji'
+  | 'measure'
+  | 'zoom'
+  | 'none';
 
 export interface IndicatorConfig {
   sma20: boolean;
