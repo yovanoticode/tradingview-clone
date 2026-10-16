@@ -2115,6 +2115,210 @@ html, body, #root {
   color: var(--tv-accent, #2962ff);
 }
 
+/* ----------------------------------------
+   Multiple Watchlists Styling
+---------------------------------------- */
+.watchlist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px 8px 14px;
+  position: relative;
+}
+
+.watchlist-header-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.wl-select-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.wl-select-btn:hover {
+  background: var(--tv-bg-hover);
+}
+
+.wl-chevron {
+  color: var(--tv-text-muted);
+  transition: transform 0.2s ease;
+}
+
+.wl-chevron.open {
+  transform: rotate(180deg);
+}
+
+.wl-add-symbol-btn {
+  background: transparent;
+  border: none;
+  color: var(--tv-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.wl-add-symbol-btn:hover {
+  background: var(--tv-bg-hover);
+  color: #ffffff;
+}
+
+.wl-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 240px;
+  background: #1e222d;
+  border: 1px solid #2a2e39;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+  padding: 6px 0;
+  font-size: 13px;
+  user-select: none;
+}
+
+.wl-dropdown-header {
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #787b86;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wl-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  color: #d1d4dc;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.wl-menu-row:hover {
+  background: #2a2e39;
+  color: #ffffff;
+}
+
+.wl-menu-row.active {
+  color: var(--tv-accent, #2962ff);
+  font-weight: 600;
+}
+
+.wl-row-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-row-count {
+  font-size: 11px;
+  color: #787b86;
+}
+
+.wl-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-check {
+  color: var(--tv-accent, #2962ff);
+}
+
+.wl-del-btn {
+  background: transparent;
+  border: none;
+  color: #787b86;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+
+.wl-del-btn:hover {
+  color: #ef4444;
+}
+
+.wl-menu-divider {
+  height: 1px;
+  background: #2a2e39;
+  margin: 6px 0;
+}
+
+.wl-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  color: #d1d4dc;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  font-size: 12px;
+}
+
+.wl-action-btn:hover {
+  background: #2a2e39;
+  color: #ffffff;
+}
+
+.item-remove-btn {
+  opacity: 0;
+  background: transparent;
+  border: none;
+  color: #787b86;
+  cursor: pointer;
+  padding: 3px;
+  margin-left: 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.watchlist-item:hover .item-remove-btn {
+  opacity: 1;
+}
+
+.item-remove-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.wl-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  color: #787b86;
+  font-size: 13px;
+  text-align: center;
+}
+
+
 
 
 

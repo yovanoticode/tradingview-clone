@@ -113,6 +113,12 @@ export interface WatchlistItem {
   isCrypto: boolean;
 }
 
+export interface WatchlistGroup {
+  id: string;
+  name: string;
+  items: WatchlistItem[];
+}
+
 export interface OrderBookEntry {
   price: number;
   amount: number;
