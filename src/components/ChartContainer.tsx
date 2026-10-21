@@ -14,7 +14,7 @@ import type {
   ISeriesApi,
   Time,
 } from 'lightweight-charts';
-import type { Candle, ChartType, DrawingTool, IndicatorConfig, ICTSettings, ChartTimezone } from '../types';
+import type { Candle, ChartType, DrawingTool, IndicatorConfig, ICTSettings, ChartTimezone, StochasticSettings } from '../types';
 import {
   calculateBollingerBands,
   calculateEMA,
@@ -37,6 +37,7 @@ interface ChartContainerProps {
   clearTrigger: number;
   customPlots?: PinePlot[];
   ictSettings?: ICTSettings;
+  stochasticSettings?: StochasticSettings;
   timezone?: ChartTimezone;
 }
 
@@ -49,6 +50,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   clearTrigger,
   customPlots = [],
   ictSettings,
+  stochasticSettings,
   timezone = 'America/Bogota',
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -73,6 +75,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   // Stochastic series refs
   const stochKRef = useRef<ISeriesApi<'Line'> | null>(null);
   const stochDRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const stochUpperBandRef = useRef<any>(null);
+  const stochLowerBandRef = useRef<any>(null);
 
   // Stored price lines (drawings)
   const priceLinesRef = useRef<any[]>([]);
@@ -722,19 +726,27 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       macdHistRef.current = null;
     }
 
-    // Stochastic Oscillator (14, 3, 3)
+    // Stochastic Oscillator
     if (indicators.stochastic) {
+      const stochPeriod = stochasticSettings?.period ?? 14;
+      const stochSmoothK = stochasticSettings?.smoothK ?? 3;
+      const stochSmoothD = stochasticSettings?.smoothD ?? 3;
+      const stochKColor = stochasticSettings?.kColor ?? '#2962ff';
+      const stochDColor = stochasticSettings?.dColor ?? '#ff6d00';
+      const stochUpper = stochasticSettings?.upperBand ?? 80;
+      const stochLower = stochasticSettings?.lowerBand ?? 20;
+
       if (!stochKRef.current) {
         stochKRef.current = chart.addSeries(LineSeries, {
-          color: '#2962ff',
+          color: stochKColor,
           lineWidth: 2,
-          title: '%K (14, 3)',
+          title: `%K (${stochPeriod}, ${stochSmoothK})`,
           priceScaleId: 'stoch_scale',
         });
         stochDRef.current = chart.addSeries(LineSeries, {
-          color: '#ff6d00',
+          color: stochDColor,
           lineWidth: 1,
-          title: '%D (3)',
+          title: `%D (${stochSmoothD})`,
           priceScaleId: 'stoch_scale',
         });
         chart.priceScale('stoch_scale').applyOptions({
@@ -743,21 +755,66 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
             bottom: 0.02,
           },
         });
+        try {
+          stochUpperBandRef.current = stochKRef.current.createPriceLine({
+            price: stochUpper,
+            color: 'rgba(255, 255, 255, 0.25)',
+            lineWidth: 1,
+            lineStyle: 2,
+            axisLabelVisible: true,
+            title: `${stochUpper}`,
+          });
+          stochLowerBandRef.current = stochKRef.current.createPriceLine({
+            price: stochLower,
+            color: 'rgba(255, 255, 255, 0.25)',
+            lineWidth: 1,
+            lineStyle: 2,
+            axisLabelVisible: true,
+            title: `${stochLower}`,
+          });
+        } catch {}
+      } else {
+        stochKRef.current.applyOptions({
+          color: stochKColor,
+          title: `%K (${stochPeriod}, ${stochSmoothK})`,
+        });
+        stochDRef.current?.applyOptions({
+          color: stochDColor,
+          title: `%D (${stochSmoothD})`,
+        });
+        if (stochUpperBandRef.current) {
+          try {
+            stochUpperBandRef.current.applyOptions({ price: stochUpper, title: `${stochUpper}` });
+          } catch {}
+        }
+        if (stochLowerBandRef.current) {
+          try {
+            stochLowerBandRef.current.applyOptions({ price: stochLower, title: `${stochLower}` });
+          } catch {}
+        }
       }
-      const data = calculateStochastic(candles);
+      const data = calculateStochastic(candles, stochPeriod, stochSmoothK, stochSmoothD);
       if (data.length > 0) {
         stochKRef.current.setData(data.map((d) => ({ time: d.time as Time, value: d.k })));
         stochDRef.current?.setData(data.map((d) => ({ time: d.time as Time, value: d.d })));
       }
     } else if (stochKRef.current) {
       try {
+        if (stochUpperBandRef.current && stochKRef.current) {
+          stochKRef.current.removePriceLine(stochUpperBandRef.current);
+          stochUpperBandRef.current = null;
+        }
+        if (stochLowerBandRef.current && stochKRef.current) {
+          stochKRef.current.removePriceLine(stochLowerBandRef.current);
+          stochLowerBandRef.current = null;
+        }
         if (stochKRef.current) chart.removeSeries(stochKRef.current);
         if (stochDRef.current) chart.removeSeries(stochDRef.current);
       } catch {}
       stochKRef.current = null;
       stochDRef.current = null;
     }
-  }, [indicators, candles]);
+  }, [indicators, candles, stochasticSettings]);
 
   // 5.1 Custom Pine Script Plots
   useEffect(() => {

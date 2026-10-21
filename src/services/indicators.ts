@@ -217,6 +217,16 @@ export function calculateStochastic(
   return result;
 }
 
+export const DEFAULT_STOCHASTIC_SETTINGS: import('../types').StochasticSettings = {
+  period: 14,
+  smoothK: 3,
+  smoothD: 3,
+  kColor: '#2962ff',
+  dColor: '#ff6d00',
+  upperBand: 80,
+  lowerBand: 20,
+};
+
 export const DEFAULT_ICT_SETTINGS: import('../types').ICTSettings = {
   enabled: true,
 

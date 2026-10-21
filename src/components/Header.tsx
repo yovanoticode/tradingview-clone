@@ -17,7 +17,8 @@ import {
   Star,
   Trash2
 } from 'lucide-react';
-import type { ChartType, IndicatorConfig, Timeframe, ICTSettings, ChartLayout } from '../types';
+import type { ChartType, IndicatorConfig, Timeframe, ICTSettings, ChartLayout, StochasticSettings } from '../types';
+import { DEFAULT_STOCHASTIC_SETTINGS } from '../services/indicators';
 
 interface HeaderProps {
   symbol: string;
@@ -30,6 +31,8 @@ interface HeaderProps {
   onToggleIndicator: (key: keyof IndicatorConfig) => void;
   ictSettings: ICTSettings;
   onUpdateIctSettings: (newSettings: Partial<ICTSettings>) => void;
+  stochasticSettings?: StochasticSettings;
+  onUpdateStochasticSettings?: (newSettings: Partial<StochasticSettings>) => void;
   currentPrice: number;
   priceChange: number;
   onTakeSnapshot: () => void;
@@ -81,6 +84,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleIndicator,
   ictSettings,
   onUpdateIctSettings,
+  stochasticSettings,
+  onUpdateStochasticSettings,
   currentPrice,
   priceChange,
   onTakeSnapshot,
@@ -102,6 +107,8 @@ export const Header: React.FC<HeaderProps> = ({
   const [showIndicators, setShowIndicators] = useState(false);
   const [showIctModal, setShowIctModal] = useState(false);
   const [ictTab, setIctTab] = useState<'kz' | 'dwm' | 'opens'>('kz');
+  const [showStochModal, setShowStochModal] = useState(false);
+  const [stochTab, setStochTab] = useState<'inputs' | 'style'>('inputs');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Layout Dropdown & Modal State
@@ -510,14 +517,27 @@ export const Header: React.FC<HeaderProps> = ({
               />
               <span>MACD (12, 26, 9)</span>
             </label>
-            <label className="indicator-toggle">
-              <input
-                type="checkbox"
-                checked={indicators.stochastic}
-                onChange={() => onToggleIndicator('stochastic')}
-              />
-              <span>Estocástico (14, 3, 3)</span>
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label className="indicator-toggle" style={{ margin: 0, flex: 1 }}>
+                <input
+                  type="checkbox"
+                  checked={indicators.stochastic}
+                  onChange={() => onToggleIndicator('stochastic')}
+                />
+                <span>Estocástico ({stochasticSettings?.period ?? 14}, {stochasticSettings?.smoothK ?? 3}, {stochasticSettings?.smoothD ?? 3})</span>
+              </label>
+              <button
+                className="tv-btn icon-btn"
+                title="Configurar parámetros del Estocástico"
+                style={{ padding: '2px 6px', height: '24px', marginLeft: '6px' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowStochModal(true);
+                }}
+              >
+                <Settings size={14} />
+              </button>
+            </div>
 
             <div style={{ borderTop: '1px solid var(--tv-border)', margin: '4px 0' }} />
 
@@ -924,6 +944,227 @@ export const Header: React.FC<HeaderProps> = ({
                 className="tv-btn primary-btn"
                 style={{ padding: '6px 16px', fontSize: '12px' }}
                 onClick={() => setShowIctModal(false)}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stochastic Settings Modal */}
+      {showStochModal && (
+        <div className="modal-overlay" onClick={() => setShowStochModal(false)} style={{ zIndex: 120 }}>
+          <div
+            className="search-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px', padding: '18px 22px', maxHeight: '85vh', overflowY: 'auto' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sliders size={18} color="#2962ff" />
+                <span style={{ fontSize: '15px', fontWeight: 600, color: '#fff' }}>Parámetros Estocástico (Stochastic)</span>
+              </div>
+              <button className="close-btn" onClick={() => setShowStochModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Navigation Tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--tv-border)', marginBottom: '14px', gap: '8px' }}>
+              <button
+                type="button"
+                className={`tv-btn ${stochTab === 'inputs' ? 'active' : ''}`}
+                style={{ padding: '6px 12px', fontSize: '12px', borderRadius: '4px 4px 0 0' }}
+                onClick={() => setStochTab('inputs')}
+              >
+                Entrada de datos
+              </button>
+              <button
+                type="button"
+                className={`tv-btn ${stochTab === 'style' ? 'active' : ''}`}
+                style={{ padding: '6px 12px', fontSize: '12px', borderRadius: '4px 4px 0 0' }}
+                onClick={() => setStochTab('style')}
+              >
+                Estilo
+              </button>
+            </div>
+
+            {/* TAB 1: INPUTS */}
+            {stochTab === 'inputs' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>%K Longitud (Periodo):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={stochasticSettings?.period ?? 14}
+                    onChange={(e) =>
+                      onUpdateStochasticSettings?.({
+                        period: Math.max(1, parseInt(e.target.value, 10) || 1),
+                      })
+                    }
+                    style={{
+                      width: '70px',
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textAlign: 'right',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>%K Suavizado:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={stochasticSettings?.smoothK ?? 3}
+                    onChange={(e) =>
+                      onUpdateStochasticSettings?.({
+                        smoothK: Math.max(1, parseInt(e.target.value, 10) || 1),
+                      })
+                    }
+                    style={{
+                      width: '70px',
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textAlign: 'right',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>%D Suavizado:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={stochasticSettings?.smoothD ?? 3}
+                    onChange={(e) =>
+                      onUpdateStochasticSettings?.({
+                        smoothD: Math.max(1, parseInt(e.target.value, 10) || 1),
+                      })
+                    }
+                    style={{
+                      width: '70px',
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textAlign: 'right',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: STYLE */}
+            {stochTab === 'style' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: stochasticSettings?.kColor || '#2962ff' }} />
+                    Línea %K:
+                  </label>
+                  <input
+                    type="color"
+                    value={stochasticSettings?.kColor || '#2962ff'}
+                    onChange={(e) => onUpdateStochasticSettings?.({ kColor: e.target.value })}
+                    style={{ width: '32px', height: '26px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: stochasticSettings?.dColor || '#ff6d00' }} />
+                    Línea %D:
+                  </label>
+                  <input
+                    type="color"
+                    value={stochasticSettings?.dColor || '#ff6d00'}
+                    onChange={(e) => onUpdateStochasticSettings?.({ dColor: e.target.value })}
+                    style={{ width: '32px', height: '26px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                  />
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--tv-border)', margin: '4px 0' }} />
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Banda Superior (Sobrecompra):</label>
+                  <input
+                    type="number"
+                    min="50"
+                    max="100"
+                    value={stochasticSettings?.upperBand ?? 80}
+                    onChange={(e) =>
+                      onUpdateStochasticSettings?.({
+                        upperBand: parseInt(e.target.value, 10) || 80,
+                      })
+                    }
+                    style={{
+                      width: '70px',
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textAlign: 'right',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Banda Inferior (Sobreventa):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="50"
+                    value={stochasticSettings?.lowerBand ?? 20}
+                    onChange={(e) =>
+                      onUpdateStochasticSettings?.({
+                        lowerBand: parseInt(e.target.value, 10) || 20,
+                      })
+                    }
+                    style={{
+                      width: '70px',
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textAlign: 'right',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                className="tv-btn"
+                style={{ padding: '6px 12px', fontSize: '12px', color: '#94a3b8' }}
+                onClick={() => onUpdateStochasticSettings?.(DEFAULT_STOCHASTIC_SETTINGS)}
+              >
+                Restablecer
+              </button>
+              <button
+                className="tv-btn primary-btn"
+                style={{ padding: '6px 18px', fontSize: '12px', background: 'var(--tv-accent)', color: '#fff' }}
+                onClick={() => setShowStochModal(false)}
               >
                 Aceptar
               </button>

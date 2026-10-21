@@ -42,6 +42,16 @@ export type DrawingTool =
   | 'zoom'
   | 'none';
 
+export interface StochasticSettings {
+  period: number;
+  smoothK: number;
+  smoothD: number;
+  kColor: string;
+  dColor: string;
+  upperBand: number;
+  lowerBand: number;
+}
+
 export interface IndicatorConfig {
   sma20: boolean;
   ema50: boolean;
@@ -161,6 +171,7 @@ export interface ChartLayout {
   chartType: ChartType;
   indicators: IndicatorConfig;
   ictSettings: ICTSettings;
+  stochasticSettings?: StochasticSettings;
   isFavorite?: boolean;
   lastModified: number;
 }
