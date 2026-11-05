@@ -15,6 +15,7 @@ import {
   Search
 } from 'lucide-react';
 import type { OrderBookEntry, WatchlistItem, WatchlistGroup } from '../types';
+import { searchBinanceSymbols } from '../services/binanceService';
 
 interface RightSidebarProps {
   currentSymbol: string;
@@ -134,6 +135,63 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   const [modalInputName, setModalInputName] = useState('');
   const [showAddSymbolModal, setShowAddSymbolModal] = useState(false);
   const [addSymbolQuery, setAddSymbolQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<WatchlistItem[]>(ALL_CATALOG_SYMBOLS);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (!showAddSymbolModal) return;
+    const clean = addSymbolQuery.trim().toLowerCase();
+    if (!clean) {
+      setSearchResults(ALL_CATALOG_SYMBOLS);
+      setIsSearching(false);
+      return;
+    }
+
+    // 1. Immediate local match
+    const localMatches = ALL_CATALOG_SYMBOLS.filter(
+      (item) =>
+        item.symbol.toLowerCase().includes(clean) ||
+        item.name.toLowerCase().includes(clean)
+    );
+    setSearchResults(localMatches);
+
+    // 2. Dynamic Binance lookup
+    let cancelled = false;
+    setIsSearching(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const binanceItems = await searchBinanceSymbols(clean);
+        if (cancelled) return;
+
+        const existingSyms = new Set(localMatches.map((m) => m.symbol.toUpperCase()));
+        const newItems: WatchlistItem[] = [];
+
+        binanceItems.forEach((b) => {
+          if (!existingSyms.has(b.symbol.toUpperCase())) {
+            newItems.push({
+              symbol: b.symbol,
+              name: b.name,
+              price: b.price,
+              change24h: b.change24h,
+              isCrypto: true,
+            });
+          }
+        });
+
+        setSearchResults([...localMatches, ...newItems]);
+      } catch (err) {
+        console.error('Error searching symbols:', err);
+      } finally {
+        if (!cancelled) setIsSearching(false);
+      }
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [addSymbolQuery, showAddSymbolModal]);
 
   const activeGroup = watchlistGroups.find((g) => g.id === activeGroupId) || watchlistGroups[0] || DEFAULT_WATCHLIST_GROUPS[0];
 
@@ -638,11 +696,17 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
             </div>
 
             <div className="search-results" style={{ maxHeight: '280px', overflowY: 'auto' }}>
-              {ALL_CATALOG_SYMBOLS.filter(
-                (item) =>
-                  item.symbol.toLowerCase().includes(addSymbolQuery.toLowerCase()) ||
-                  item.name.toLowerCase().includes(addSymbolQuery.toLowerCase())
-              ).map((item) => {
+              {isSearching && searchResults.length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#787b86', fontSize: '12px' }}>
+                  Buscando en Binance...
+                </div>
+              )}
+              {!isSearching && searchResults.length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#787b86', fontSize: '12px' }}>
+                  No se encontraron resultados para "{addSymbolQuery}"
+                </div>
+              )}
+              {searchResults.map((item) => {
                 const isAlreadyAdded = activeGroup.items.some((i) => i.symbol === item.symbol);
                 return (
                   <div
@@ -657,9 +721,15 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                       <span className="item-symbol">{item.symbol}</span>
                       <span className="item-name">{item.name}</span>
                     </div>
-                    <div className="item-market">
+                    <div className="item-market" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="item-badge">{item.isCrypto ? 'CRYPTO' : 'STOCK'}</span>
+                      {item.price > 0 && (
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#d1d4dc' }}>
+                          ${item.price < 1 ? item.price.toFixed(4) : item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      )}
                       {isAlreadyAdded ? (
-                        <span style={{ fontSize: '11px', color: 'var(--tv-green)' }}>Añadido</span>
+                        <span style={{ fontSize: '11px', color: 'var(--tv-green)', marginLeft: '4px' }}>Añadido</span>
                       ) : (
                         <Plus size={16} />
                       )}

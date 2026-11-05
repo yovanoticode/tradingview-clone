@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { ChartType, IndicatorConfig, Timeframe, ICTSettings, ChartLayout, StochasticSettings } from '../types';
 import { DEFAULT_STOCHASTIC_SETTINGS } from '../services/indicators';
+import { searchBinanceSymbols } from '../services/binanceService';
 
 interface HeaderProps {
   symbol: string;
@@ -143,9 +144,59 @@ export const Header: React.FC<HeaderProps> = ({
     setLayoutModalMode(null);
   };
 
-  const filteredSymbols = AVAILABLE_SYMBOLS.filter(
-    (s) => s.symbol.toLowerCase().includes(searchQuery.toLowerCase()) || s.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const [headerSearchResults, setHeaderSearchResults] = useState(AVAILABLE_SYMBOLS);
+  const [isSearchingHeader, setIsSearchingHeader] = useState(false);
+
+  useEffect(() => {
+    if (!showSearch) return;
+    const clean = searchQuery.trim().toLowerCase();
+    if (!clean) {
+      setHeaderSearchResults(AVAILABLE_SYMBOLS);
+      setIsSearchingHeader(false);
+      return;
+    }
+
+    const localMatches = AVAILABLE_SYMBOLS.filter(
+      (s) => s.symbol.toLowerCase().includes(clean) || s.name.toLowerCase().includes(clean)
+    );
+    setHeaderSearchResults(localMatches);
+
+    let cancelled = false;
+    setIsSearchingHeader(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const binanceItems = await searchBinanceSymbols(clean);
+        if (cancelled) return;
+
+        const existing = new Set(localMatches.map((m) => m.symbol.toUpperCase()));
+        const extra: typeof AVAILABLE_SYMBOLS = [];
+
+        binanceItems.forEach((b) => {
+          if (!existing.has(b.symbol.toUpperCase())) {
+            extra.push({
+              symbol: b.symbol,
+              name: b.name,
+              price: b.price < 1 ? b.price.toFixed(4) : b.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+              change: `${b.change24h >= 0 ? '+' : ''}${b.change24h.toFixed(2)}%`,
+              isCrypto: true,
+            });
+          }
+        });
+
+        setHeaderSearchResults([...localMatches, ...extra]);
+      } catch (err) {
+        console.error('Error searching symbols in header:', err);
+      } finally {
+        if (!cancelled) setIsSearchingHeader(false);
+      }
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, showSearch]);
 
   const activeIndicatorCount = Object.values(indicators).filter(Boolean).length;
 
@@ -427,7 +478,17 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
             <div className="search-results">
-              {filteredSymbols.map((item) => (
+              {isSearchingHeader && headerSearchResults.length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#787b86', fontSize: '12px' }}>
+                  Buscando en Binance...
+                </div>
+              )}
+              {!isSearchingHeader && headerSearchResults.length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#787b86', fontSize: '12px' }}>
+                  No se encontraron resultados para "{searchQuery}"
+                </div>
+              )}
+              {headerSearchResults.map((item) => (
                 <div
                   key={item.symbol}
                   className={`search-item ${symbol === item.symbol ? 'selected' : ''}`}

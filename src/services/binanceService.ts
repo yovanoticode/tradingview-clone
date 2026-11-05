@@ -108,3 +108,146 @@ function generateSyntheticData(symbol: string, count: number): Candle[] {
   }
   return candles;
 }
+
+export interface BinanceSearchResult {
+  symbol: string;
+  name: string;
+  price: number;
+  change24h: number;
+  isCrypto: boolean;
+}
+
+let cachedTickers: { symbol: string; price: number }[] | null = null;
+let cacheFetchPromise: Promise<{ symbol: string; price: number }[]> | null = null;
+
+export async function fetchBinanceTickerList(): Promise<{ symbol: string; price: number }[]> {
+  if (cachedTickers && cachedTickers.length > 0) return cachedTickers;
+  if (cacheFetchPromise) return cacheFetchPromise;
+
+  cacheFetchPromise = (async () => {
+    try {
+      const res = await fetch('https://api.binance.com/api/v3/ticker/price');
+      if (!res.ok) throw new Error('Failed to fetch ticker list');
+      const data = await res.json();
+      cachedTickers = data.map((d: any) => ({
+        symbol: d.symbol,
+        price: parseFloat(d.price),
+      }));
+      return cachedTickers || [];
+    } catch (e) {
+      console.warn('Could not load Binance symbol list', e);
+      return [];
+    } finally {
+      cacheFetchPromise = null;
+    }
+  })();
+
+  return cacheFetchPromise;
+}
+
+export async function searchBinanceSymbols(query: string): Promise<BinanceSearchResult[]> {
+  const cleanQ = query.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  if (!cleanQ) return [];
+
+  const all = await fetchBinanceTickerList();
+
+  if (!all.length) {
+    const candidates = cleanQ.endsWith('USDT') ? [cleanQ] : [`${cleanQ}USDT`, cleanQ];
+    const directResults: BinanceSearchResult[] = [];
+    for (const sym of candidates) {
+      try {
+        const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${sym}`);
+        if (res.ok) {
+          const d = await res.json();
+          directResults.push({
+            symbol: d.symbol,
+            name: `${d.symbol.replace('USDT', '')} / TetherUS`,
+            price: parseFloat(d.lastPrice),
+            change24h: parseFloat(d.priceChangePercent),
+            isCrypto: true,
+          });
+        }
+      } catch {}
+    }
+    return directResults;
+  }
+
+  const matches = all.filter((item) => item.symbol.includes(cleanQ));
+  if (matches.length === 0) return [];
+
+  matches.sort((a, b) => {
+    const aSym = a.symbol;
+    const bSym = b.symbol;
+    const targetUSDT = `${cleanQ}USDT`;
+    if (aSym === targetUSDT) return -1;
+    if (bSym === targetUSDT) return 1;
+    if (aSym === cleanQ) return -1;
+    if (bSym === cleanQ) return 1;
+
+    const aStarts = aSym.startsWith(cleanQ);
+    const bStarts = bSym.startsWith(cleanQ);
+    const aUsdt = aSym.endsWith('USDT');
+    const bUsdt = bSym.endsWith('USDT');
+
+    if (aStarts && aUsdt && !(bStarts && bUsdt)) return -1;
+    if (!(aStarts && aUsdt) && bStarts && bUsdt) return 1;
+
+    if (aStarts && !bStarts) return -1;
+    if (!aStarts && bStarts) return 1;
+
+    if (aUsdt && !bUsdt) return -1;
+    if (!aUsdt && bUsdt) return 1;
+
+    return aSym.localeCompare(bSym);
+  });
+
+  const topMatches = matches.slice(0, 12);
+  const symbolList = topMatches.map((m) => m.symbol);
+
+  try {
+    const url = `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbolList))}`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const stats = await res.json();
+      const statsMap = new Map<string, any>();
+      stats.forEach((s: any) => statsMap.set(s.symbol, s));
+
+      return topMatches.map((m) => {
+        const stat = statsMap.get(m.symbol);
+        const base = m.symbol.endsWith('USDT')
+          ? m.symbol.slice(0, -4)
+          : m.symbol.endsWith('BTC')
+          ? m.symbol.slice(0, -3)
+          : m.symbol;
+        const quote = m.symbol.endsWith('USDT')
+          ? 'TetherUS'
+          : m.symbol.endsWith('BTC')
+          ? 'Bitcoin'
+          : m.symbol.endsWith('USDC')
+          ? 'USD Coin'
+          : m.symbol.endsWith('FDUSD')
+          ? 'FDUSD'
+          : '';
+
+        return {
+          symbol: m.symbol,
+          name: quote ? `${base} / ${quote}` : m.symbol,
+          price: stat ? parseFloat(stat.lastPrice) : m.price,
+          change24h: stat ? parseFloat(stat.priceChangePercent) : 0,
+          isCrypto: true,
+        };
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to fetch 24hr stats for top matches', e);
+  }
+
+  return topMatches.map((m) => ({
+    symbol: m.symbol,
+    name: m.symbol,
+    price: m.price,
+    change24h: 0,
+    isCrypto: true,
+  }));
+}
+
