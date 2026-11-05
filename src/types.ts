@@ -42,12 +42,29 @@ export type DrawingTool =
   | 'zoom'
   | 'none';
 
+export type RSISource = 'close' | 'open' | 'high' | 'low' | 'hl2' | 'hlc3' | 'ohlc4';
+export type RSIMAType = 'SMA' | 'EMA' | 'None';
+
 export interface RSISettings {
   period: number;
+  source: RSISource;
+  maType: RSIMAType;
+  maLength: number;
+  showRsi: boolean;
   color: string;
+  lineWidth: number;
+  showMa: boolean;
+  maColor: string;
+  maLineWidth: number;
+  showUpperBand: boolean;
   upperBand: number;
+  upperColor: string;
+  showMiddleBand: boolean;
   middleBand: number;
+  middleColor: string;
+  showLowerBand: boolean;
   lowerBand: number;
+  lowerColor: string;
 }
 
 export interface StochasticSettings {

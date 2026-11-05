@@ -1,4 +1,4 @@
-import type { Candle } from '../types';
+import type { Candle, RSISource, RSIMAType, RSISettings } from '../types';
 
 export interface IndicatorPoint {
   time: number;
@@ -70,7 +70,31 @@ export function calculateBollingerBands(candles: Candle[], period = 20, multipli
   return result;
 }
 
-export function calculateRSI(candles: Candle[], period = 14): IndicatorPoint[] {
+function getSourcePrice(c: Candle, source: RSISource = 'close'): number {
+  switch (source) {
+    case 'open':
+      return c.open;
+    case 'high':
+      return c.high;
+    case 'low':
+      return c.low;
+    case 'hl2':
+      return (c.high + c.low) / 2;
+    case 'hlc3':
+      return (c.high + c.low + c.close) / 3;
+    case 'ohlc4':
+      return (c.open + c.high + c.low + c.close) / 4;
+    case 'close':
+    default:
+      return c.close;
+  }
+}
+
+export function calculateRSI(
+  candles: Candle[],
+  period = 14,
+  source: RSISource = 'close'
+): IndicatorPoint[] {
   const result: IndicatorPoint[] = [];
   if (candles.length <= period) return result;
 
@@ -78,7 +102,9 @@ export function calculateRSI(candles: Candle[], period = 14): IndicatorPoint[] {
   let losses = 0;
 
   for (let i = 1; i <= period; i++) {
-    const change = candles[i].close - candles[i - 1].close;
+    const prevVal = getSourcePrice(candles[i - 1], source);
+    const currVal = getSourcePrice(candles[i], source);
+    const change = currVal - prevVal;
     if (change >= 0) gains += change;
     else losses -= change;
   }
@@ -91,7 +117,9 @@ export function calculateRSI(candles: Candle[], period = 14): IndicatorPoint[] {
   result.push({ time: candles[period].time, value: rsi });
 
   for (let i = period + 1; i < candles.length; i++) {
-    const change = candles[i].close - candles[i - 1].close;
+    const prevVal = getSourcePrice(candles[i - 1], source);
+    const currVal = getSourcePrice(candles[i], source);
+    const change = currVal - prevVal;
     const gain = change >= 0 ? change : 0;
     const loss = change < 0 ? -change : 0;
 
@@ -104,6 +132,45 @@ export function calculateRSI(candles: Candle[], period = 14): IndicatorPoint[] {
   }
 
   return result;
+}
+
+export function calculateRSIMA(
+  rsiPoints: IndicatorPoint[],
+  maLength = 14,
+  maType: RSIMAType = 'SMA'
+): IndicatorPoint[] {
+  if (maType === 'None' || rsiPoints.length < maLength) return [];
+  if (maType === 'SMA') {
+    const result: IndicatorPoint[] = [];
+    let sum = 0;
+    for (let i = 0; i < rsiPoints.length; i++) {
+      sum += rsiPoints[i].value;
+      if (i >= maLength) {
+        sum -= rsiPoints[i - maLength].value;
+      }
+      if (i >= maLength - 1) {
+        result.push({ time: rsiPoints[i].time, value: sum / maLength });
+      }
+    }
+    return result;
+  }
+  if (maType === 'EMA') {
+    const result: IndicatorPoint[] = [];
+    const k = 2 / (maLength + 1);
+    let ema = rsiPoints[0].value;
+    for (let i = 0; i < rsiPoints.length; i++) {
+      if (i === 0) {
+        ema = rsiPoints[0].value;
+      } else {
+        ema = rsiPoints[i].value * k + ema * (1 - k);
+      }
+      if (i >= maLength - 1) {
+        result.push({ time: rsiPoints[i].time, value: ema });
+      }
+    }
+    return result;
+  }
+  return [];
 }
 
 export interface MACDPoint {
@@ -217,12 +284,26 @@ export function calculateStochastic(
   return result;
 }
 
-export const DEFAULT_RSI_SETTINGS: import('../types').RSISettings = {
+export const DEFAULT_RSI_SETTINGS: RSISettings = {
   period: 14,
+  source: 'close',
+  maType: 'SMA',
+  maLength: 14,
+  showRsi: true,
   color: '#7e57c2',
+  lineWidth: 2,
+  showMa: true,
+  maColor: '#ffeb3b',
+  maLineWidth: 1,
+  showUpperBand: true,
   upperBand: 70,
+  upperColor: 'rgba(255, 255, 255, 0.4)',
+  showMiddleBand: true,
   middleBand: 50,
+  middleColor: 'rgba(255, 255, 255, 0.2)',
+  showLowerBand: true,
   lowerBand: 30,
+  lowerColor: 'rgba(255, 255, 255, 0.4)',
 };
 
 export const DEFAULT_STOCHASTIC_SETTINGS: import('../types').StochasticSettings = {

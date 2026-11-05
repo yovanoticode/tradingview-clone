@@ -575,7 +575,7 @@ export const Header: React.FC<HeaderProps> = ({
                   checked={indicators.rsi}
                   onChange={() => onToggleIndicator('rsi')}
                 />
-                <span>RSI ({rsiSettings?.period ?? 14}) (Índice de Fuerza Relativa)</span>
+                <span>RSI ({rsiSettings?.period ?? 14}, {rsiSettings?.source ?? 'close'}{rsiSettings?.maType && rsiSettings.maType !== 'None' ? `, ${rsiSettings.maType} ${rsiSettings.maLength ?? 14}` : ''}) (Índice de Fuerza Relativa)</span>
               </label>
               <button
                 className="tv-btn icon-btn"
@@ -1295,7 +1295,7 @@ export const Header: React.FC<HeaderProps> = ({
             {rsiTab === 'inputs' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Longitud (Periodo):</label>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Longitud del RSI:</label>
                   <input
                     type="number"
                     min="1"
@@ -1307,7 +1307,89 @@ export const Header: React.FC<HeaderProps> = ({
                       })
                     }
                     style={{
-                      width: '70px',
+                      width: '80px',
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textAlign: 'right',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Fuente (Source):</label>
+                  <select
+                    value={rsiSettings?.source ?? 'close'}
+                    onChange={(e) =>
+                      onUpdateRsiSettings?.({
+                        source: e.target.value as any,
+                      })
+                    }
+                    style={{
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      minWidth: '130px',
+                    }}
+                  >
+                    <option value="close">Cierre (close)</option>
+                    <option value="open">Apertura (open)</option>
+                    <option value="high">Máximo (high)</option>
+                    <option value="low">Mínimo (low)</option>
+                    <option value="hl2">(H + L) / 2</option>
+                    <option value="hlc3">(H + L + C) / 3</option>
+                    <option value="ohlc4">(O + H + L + C) / 4</option>
+                  </select>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--tv-border)', margin: '4px 0' }} />
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Tipo de MA del RSI:</label>
+                  <select
+                    value={rsiSettings?.maType ?? 'SMA'}
+                    onChange={(e) =>
+                      onUpdateRsiSettings?.({
+                        maType: e.target.value as any,
+                      })
+                    }
+                    style={{
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      minWidth: '130px',
+                    }}
+                  >
+                    <option value="SMA">SMA (Media Simple)</option>
+                    <option value="EMA">EMA (Exponencial)</option>
+                    <option value="None">Ninguno (Desactivada)</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: rsiSettings?.maType === 'None' ? 0.5 : 1 }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Longitud de la MA:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    disabled={rsiSettings?.maType === 'None'}
+                    value={rsiSettings?.maLength ?? 14}
+                    onChange={(e) =>
+                      onUpdateRsiSettings?.({
+                        maLength: Math.max(1, parseInt(e.target.value, 10) || 1),
+                      })
+                    }
+                    style={{
+                      width: '80px',
                       background: '#1e222d',
                       border: '1px solid #2a2e39',
                       color: '#fff',
@@ -1324,94 +1406,186 @@ export const Header: React.FC<HeaderProps> = ({
             {/* TAB 2: STYLE */}
             {rsiTab === 'style' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '12px' }}>
+                {/* RSI Line */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <label style={{ color: '#cbd5e1', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: rsiSettings?.color || '#7e57c2' }} />
-                    Color de la línea RSI:
+                  <label style={{ color: '#cbd5e1', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={rsiSettings?.showRsi ?? true}
+                      onChange={(e) => onUpdateRsiSettings?.({ showRsi: e.target.checked })}
+                    />
+                    <span>Línea RSI</span>
                   </label>
-                  <input
-                    type="color"
-                    value={rsiSettings?.color || '#7e57c2'}
-                    onChange={(e) => onUpdateRsiSettings?.({ color: e.target.value })}
-                    style={{ width: '32px', height: '26px', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="color"
+                      value={rsiSettings?.color || '#7e57c2'}
+                      onChange={(e) => onUpdateRsiSettings?.({ color: e.target.value })}
+                      style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                    />
+                    <select
+                      value={rsiSettings?.lineWidth ?? 2}
+                      onChange={(e) => onUpdateRsiSettings?.({ lineWidth: parseInt(e.target.value, 10) || 2 })}
+                      style={{ background: '#1e222d', border: '1px solid #2a2e39', color: '#fff', fontSize: '11px', padding: '2px 4px', borderRadius: '3px' }}
+                    >
+                      <option value="1">1px</option>
+                      <option value="2">2px</option>
+                      <option value="3">3px</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* RSI-based MA Line */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={rsiSettings?.showMa ?? true}
+                      onChange={(e) => onUpdateRsiSettings?.({ showMa: e.target.checked })}
+                    />
+                    <span>Media Móvil (MA del RSI)</span>
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="color"
+                      value={rsiSettings?.maColor || '#ffeb3b'}
+                      onChange={(e) => onUpdateRsiSettings?.({ maColor: e.target.value })}
+                      style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                    />
+                    <select
+                      value={rsiSettings?.maLineWidth ?? 1}
+                      onChange={(e) => onUpdateRsiSettings?.({ maLineWidth: parseInt(e.target.value, 10) || 1 })}
+                      style={{ background: '#1e222d', border: '1px solid #2a2e39', color: '#fff', fontSize: '11px', padding: '2px 4px', borderRadius: '3px' }}
+                    >
+                      <option value="1">1px</option>
+                      <option value="2">2px</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--tv-border)', margin: '4px 0' }} />
 
+                {/* Upper Band */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Banda Superior (Sobrecompra):</label>
-                  <input
-                    type="number"
-                    min="50"
-                    max="100"
-                    value={rsiSettings?.upperBand ?? 70}
-                    onChange={(e) =>
-                      onUpdateRsiSettings?.({
-                        upperBand: parseInt(e.target.value, 10) || 70,
-                      })
-                    }
-                    style={{
-                      width: '70px',
-                      background: '#1e222d',
-                      border: '1px solid #2a2e39',
-                      color: '#fff',
-                      fontSize: '12px',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      textAlign: 'right',
-                    }}
-                  />
+                  <label style={{ color: '#cbd5e1', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={rsiSettings?.showUpperBand ?? true}
+                      onChange={(e) => onUpdateRsiSettings?.({ showUpperBand: e.target.checked })}
+                    />
+                    <span>Banda Superior (Sobrecompra):</span>
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="color"
+                      value={rsiSettings?.upperColor?.startsWith('#') ? rsiSettings.upperColor : '#787b86'}
+                      onChange={(e) => onUpdateRsiSettings?.({ upperColor: e.target.value })}
+                      style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                    />
+                    <input
+                      type="number"
+                      min="50"
+                      max="100"
+                      value={rsiSettings?.upperBand ?? 70}
+                      onChange={(e) =>
+                        onUpdateRsiSettings?.({
+                          upperBand: parseInt(e.target.value, 10) || 70,
+                        })
+                      }
+                      style={{
+                        width: '60px',
+                        background: '#1e222d',
+                        border: '1px solid #2a2e39',
+                        color: '#fff',
+                        fontSize: '12px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        textAlign: 'right',
+                      }}
+                    />
+                  </div>
                 </div>
 
+                {/* Middle Band */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Banda Media (Línea Central):</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={rsiSettings?.middleBand ?? 50}
-                    onChange={(e) =>
-                      onUpdateRsiSettings?.({
-                        middleBand: parseInt(e.target.value, 10) || 50,
-                      })
-                    }
-                    style={{
-                      width: '70px',
-                      background: '#1e222d',
-                      border: '1px solid #2a2e39',
-                      color: '#fff',
-                      fontSize: '12px',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      textAlign: 'right',
-                    }}
-                  />
+                  <label style={{ color: '#cbd5e1', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={rsiSettings?.showMiddleBand ?? true}
+                      onChange={(e) => onUpdateRsiSettings?.({ showMiddleBand: e.target.checked })}
+                    />
+                    <span>Banda Media (Central):</span>
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="color"
+                      value={rsiSettings?.middleColor?.startsWith('#') ? rsiSettings.middleColor : '#787b86'}
+                      onChange={(e) => onUpdateRsiSettings?.({ middleColor: e.target.value })}
+                      style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={rsiSettings?.middleBand ?? 50}
+                      onChange={(e) =>
+                        onUpdateRsiSettings?.({
+                          middleBand: parseInt(e.target.value, 10) || 50,
+                        })
+                      }
+                      style={{
+                        width: '60px',
+                        background: '#1e222d',
+                        border: '1px solid #2a2e39',
+                        color: '#fff',
+                        fontSize: '12px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        textAlign: 'right',
+                      }}
+                    />
+                  </div>
                 </div>
 
+                {/* Lower Band */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Banda Inferior (Sobreventa):</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="50"
-                    value={rsiSettings?.lowerBand ?? 30}
-                    onChange={(e) =>
-                      onUpdateRsiSettings?.({
-                        lowerBand: parseInt(e.target.value, 10) || 30,
-                      })
-                    }
-                    style={{
-                      width: '70px',
-                      background: '#1e222d',
-                      border: '1px solid #2a2e39',
-                      color: '#fff',
-                      fontSize: '12px',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      textAlign: 'right',
-                    }}
-                  />
+                  <label style={{ color: '#cbd5e1', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={rsiSettings?.showLowerBand ?? true}
+                      onChange={(e) => onUpdateRsiSettings?.({ showLowerBand: e.target.checked })}
+                    />
+                    <span>Banda Inferior (Sobreventa):</span>
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="color"
+                      value={rsiSettings?.lowerColor?.startsWith('#') ? rsiSettings.lowerColor : '#787b86'}
+                      onChange={(e) => onUpdateRsiSettings?.({ lowerColor: e.target.value })}
+                      style={{ width: '28px', height: '24px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      value={rsiSettings?.lowerBand ?? 30}
+                      onChange={(e) =>
+                        onUpdateRsiSettings?.({
+                          lowerBand: parseInt(e.target.value, 10) || 30,
+                        })
+                      }
+                      style={{
+                        width: '60px',
+                        background: '#1e222d',
+                        border: '1px solid #2a2e39',
+                        color: '#fff',
+                        fontSize: '12px',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        textAlign: 'right',
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             )}

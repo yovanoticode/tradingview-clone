@@ -23,6 +23,7 @@ import {
   calculateICTVisualElements,
   calculateORB,
   calculateRSI,
+  calculateRSIMA,
   calculateMACD,
   calculateStochastic,
 } from '../services/indicators';
@@ -74,6 +75,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
   // RSI series refs
   const rsiSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const rsiMaSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const rsiUpperBandRef = useRef<any>(null);
   const rsiMiddleBandRef = useRef<any>(null);
   const rsiLowerBandRef = useRef<any>(null);
@@ -822,16 +824,30 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     // RSI Oscillator
     if (indicators.rsi) {
       const rsiPeriod = rsiSettings?.period ?? 14;
+      const rsiSource = rsiSettings?.source ?? 'close';
+      const rsiMaType = rsiSettings?.maType ?? 'SMA';
+      const rsiMaLength = rsiSettings?.maLength ?? 14;
+      const showRsi = rsiSettings?.showRsi ?? true;
       const rsiColor = rsiSettings?.color ?? '#7e57c2';
+      const rsiLineWidth = (rsiSettings?.lineWidth ?? 2) as any;
+      const showMa = rsiSettings?.showMa ?? true;
+      const maColor = rsiSettings?.maColor ?? '#ffeb3b';
+      const maLineWidth = (rsiSettings?.maLineWidth ?? 1) as any;
+      const showUpper = rsiSettings?.showUpperBand ?? true;
       const rsiUpper = rsiSettings?.upperBand ?? 70;
+      const upperColor = rsiSettings?.upperColor ?? 'rgba(255, 255, 255, 0.4)';
+      const showMiddle = rsiSettings?.showMiddleBand ?? true;
       const rsiMiddle = rsiSettings?.middleBand ?? 50;
+      const middleColor = rsiSettings?.middleColor ?? 'rgba(255, 255, 255, 0.2)';
+      const showLower = rsiSettings?.showLowerBand ?? true;
       const rsiLower = rsiSettings?.lowerBand ?? 30;
+      const lowerColor = rsiSettings?.lowerColor ?? 'rgba(255, 255, 255, 0.4)';
 
       if (!rsiSeriesRef.current) {
         rsiSeriesRef.current = chart.addSeries(LineSeries, {
-          color: rsiColor,
-          lineWidth: 2,
-          title: `RSI (${rsiPeriod})`,
+          color: showRsi ? rsiColor : 'transparent',
+          lineWidth: rsiLineWidth,
+          title: `RSI (${rsiPeriod}, ${rsiSource})`,
           priceScaleId: 'rsi_scale',
         });
         chart.priceScale('rsi_scale').applyOptions({
@@ -841,57 +857,140 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           },
         });
         try {
-          rsiUpperBandRef.current = rsiSeriesRef.current.createPriceLine({
-            price: rsiUpper,
-            color: 'rgba(255, 255, 255, 0.35)',
-            lineWidth: 1,
-            lineStyle: 2,
-            axisLabelVisible: true,
-            title: `${rsiUpper}`,
-          });
-          rsiMiddleBandRef.current = rsiSeriesRef.current.createPriceLine({
-            price: rsiMiddle,
-            color: 'rgba(255, 255, 255, 0.15)',
-            lineWidth: 1,
-            lineStyle: 1,
-            axisLabelVisible: false,
-            title: `${rsiMiddle}`,
-          });
-          rsiLowerBandRef.current = rsiSeriesRef.current.createPriceLine({
-            price: rsiLower,
-            color: 'rgba(255, 255, 255, 0.35)',
-            lineWidth: 1,
-            lineStyle: 2,
-            axisLabelVisible: true,
-            title: `${rsiLower}`,
-          });
+          if (showUpper) {
+            rsiUpperBandRef.current = rsiSeriesRef.current.createPriceLine({
+              price: rsiUpper,
+              color: upperColor,
+              lineWidth: 1,
+              lineStyle: 2,
+              axisLabelVisible: true,
+              title: `${rsiUpper}`,
+            });
+          }
+          if (showMiddle) {
+            rsiMiddleBandRef.current = rsiSeriesRef.current.createPriceLine({
+              price: rsiMiddle,
+              color: middleColor,
+              lineWidth: 1,
+              lineStyle: 1,
+              axisLabelVisible: false,
+              title: `${rsiMiddle}`,
+            });
+          }
+          if (showLower) {
+            rsiLowerBandRef.current = rsiSeriesRef.current.createPriceLine({
+              price: rsiLower,
+              color: lowerColor,
+              lineWidth: 1,
+              lineStyle: 2,
+              axisLabelVisible: true,
+              title: `${rsiLower}`,
+            });
+          }
         } catch {}
       } else {
         rsiSeriesRef.current.applyOptions({
-          color: rsiColor,
-          title: `RSI (${rsiPeriod})`,
+          color: showRsi ? rsiColor : 'transparent',
+          lineWidth: rsiLineWidth,
+          title: `RSI (${rsiPeriod}, ${rsiSource})`,
         });
         if (rsiUpperBandRef.current) {
           try {
-            rsiUpperBandRef.current.applyOptions({ price: rsiUpper, title: `${rsiUpper}` });
+            if (showUpper) {
+              rsiUpperBandRef.current.applyOptions({ price: rsiUpper, color: upperColor, title: `${rsiUpper}` });
+            } else {
+              rsiSeriesRef.current.removePriceLine(rsiUpperBandRef.current);
+              rsiUpperBandRef.current = null;
+            }
+          } catch {}
+        } else if (showUpper) {
+          try {
+            rsiUpperBandRef.current = rsiSeriesRef.current.createPriceLine({
+              price: rsiUpper,
+              color: upperColor,
+              lineWidth: 1,
+              lineStyle: 2,
+              axisLabelVisible: true,
+              title: `${rsiUpper}`,
+            });
           } catch {}
         }
         if (rsiMiddleBandRef.current) {
           try {
-            rsiMiddleBandRef.current.applyOptions({ price: rsiMiddle, title: `${rsiMiddle}` });
+            if (showMiddle) {
+              rsiMiddleBandRef.current.applyOptions({ price: rsiMiddle, color: middleColor, title: `${rsiMiddle}` });
+            } else {
+              rsiSeriesRef.current.removePriceLine(rsiMiddleBandRef.current);
+              rsiMiddleBandRef.current = null;
+            }
+          } catch {}
+        } else if (showMiddle) {
+          try {
+            rsiMiddleBandRef.current = rsiSeriesRef.current.createPriceLine({
+              price: rsiMiddle,
+              color: middleColor,
+              lineWidth: 1,
+              lineStyle: 1,
+              axisLabelVisible: false,
+              title: `${rsiMiddle}`,
+            });
           } catch {}
         }
         if (rsiLowerBandRef.current) {
           try {
-            rsiLowerBandRef.current.applyOptions({ price: rsiLower, title: `${rsiLower}` });
+            if (showLower) {
+              rsiLowerBandRef.current.applyOptions({ price: rsiLower, color: lowerColor, title: `${rsiLower}` });
+            } else {
+              rsiSeriesRef.current.removePriceLine(rsiLowerBandRef.current);
+              rsiLowerBandRef.current = null;
+            }
+          } catch {}
+        } else if (showLower) {
+          try {
+            rsiLowerBandRef.current = rsiSeriesRef.current.createPriceLine({
+              price: rsiLower,
+              color: lowerColor,
+              lineWidth: 1,
+              lineStyle: 2,
+              axisLabelVisible: true,
+              title: `${rsiLower}`,
+            });
           } catch {}
         }
       }
-      const data = calculateRSI(candles, rsiPeriod);
-      if (data.length > 0) {
-        rsiSeriesRef.current.setData(data.map((d) => ({ time: d.time as Time, value: d.value })));
+
+      // Handle RSI-based MA series
+      if (rsiMaType !== 'None' && showMa) {
+        if (!rsiMaSeriesRef.current) {
+          rsiMaSeriesRef.current = chart.addSeries(LineSeries, {
+            color: maColor,
+            lineWidth: maLineWidth,
+            title: `RSI ${rsiMaType} (${rsiMaLength})`,
+            priceScaleId: 'rsi_scale',
+          });
+        } else {
+          rsiMaSeriesRef.current.applyOptions({
+            color: maColor,
+            lineWidth: maLineWidth,
+            title: `RSI ${rsiMaType} (${rsiMaLength})`,
+          });
+        }
+      } else if (rsiMaSeriesRef.current) {
+        try {
+          chart.removeSeries(rsiMaSeriesRef.current);
+        } catch {}
+        rsiMaSeriesRef.current = null;
       }
-    } else if (rsiSeriesRef.current) {
+
+      const rsiData = calculateRSI(candles, rsiPeriod, rsiSource);
+      if (rsiData.length > 0) {
+        rsiSeriesRef.current.setData(rsiData.map((d) => ({ time: d.time as Time, value: d.value })));
+        if (rsiMaSeriesRef.current && rsiMaType !== 'None' && showMa) {
+          const maData = calculateRSIMA(rsiData, rsiMaLength, rsiMaType);
+          rsiMaSeriesRef.current.setData(maData.map((d) => ({ time: d.time as Time, value: d.value })));
+        }
+      }
+    } else if (rsiSeriesRef.current || rsiMaSeriesRef.current) {
       try {
         if (rsiUpperBandRef.current && rsiSeriesRef.current) {
           rsiSeriesRef.current.removePriceLine(rsiUpperBandRef.current);
@@ -906,8 +1005,10 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           rsiLowerBandRef.current = null;
         }
         if (rsiSeriesRef.current) chart.removeSeries(rsiSeriesRef.current);
+        if (rsiMaSeriesRef.current) chart.removeSeries(rsiMaSeriesRef.current);
       } catch {}
       rsiSeriesRef.current = null;
+      rsiMaSeriesRef.current = null;
     }
 
     // MACD (12, 26, 9)
@@ -1323,7 +1424,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           {indicators.ema50 ? ' · EMA50' : ''}
           {indicators.ema200 ? ' · EMA200' : ''}
           {indicators.bollinger ? ' · BB(20,2)' : ''}
-          {indicators.rsi ? ` · RSI(${rsiSettings?.period ?? 14})` : ''}
+          {indicators.rsi ? ` · RSI(${rsiSettings?.period ?? 14}${rsiSettings?.source ? `, ${rsiSettings.source}` : ''}${rsiSettings?.maType && rsiSettings.maType !== 'None' ? `, ${rsiSettings.maType} ${rsiSettings.maLength ?? 14}` : ''})` : ''}
           {indicators.macd ? ' · MACD' : ''}
           {indicators.stochastic ? ' · STOCH' : ''}
         </span>
