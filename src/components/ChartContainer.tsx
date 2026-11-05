@@ -22,6 +22,7 @@ import {
   calculateICTStats,
   calculateICTVisualElements,
   calculateORB,
+  calculateRSI,
   calculateMACD,
   calculateStochastic,
 } from '../services/indicators';
@@ -66,6 +67,12 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const bbMiddleRef = useRef<ISeriesApi<'Line'> | null>(null);
   const bbLowerRef = useRef<ISeriesApi<'Line'> | null>(null);
   const pineSeriesRef = useRef<Map<string, ISeriesApi<'Line'>>>(new Map());
+
+  // RSI series refs
+  const rsiSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const rsiUpperBandRef = useRef<any>(null);
+  const rsiMiddleBandRef = useRef<any>(null);
+  const rsiLowerBandRef = useRef<any>(null);
 
   // MACD series refs
   const macdLineRef = useRef<ISeriesApi<'Line'> | null>(null);
@@ -676,6 +683,71 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       bbLowerRef.current = null;
     }
 
+    // RSI (14)
+    if (indicators.rsi) {
+      if (!rsiSeriesRef.current) {
+        rsiSeriesRef.current = chart.addSeries(LineSeries, {
+          color: '#7e57c2',
+          lineWidth: 2,
+          title: 'RSI (14)',
+          priceScaleId: 'rsi_scale',
+        });
+        chart.priceScale('rsi_scale').applyOptions({
+          scaleMargins: {
+            top: 0.75,
+            bottom: 0.02,
+          },
+        });
+        try {
+          rsiUpperBandRef.current = rsiSeriesRef.current.createPriceLine({
+            price: 70,
+            color: 'rgba(255, 255, 255, 0.35)',
+            lineWidth: 1,
+            lineStyle: 2,
+            axisLabelVisible: true,
+            title: '70',
+          });
+          rsiMiddleBandRef.current = rsiSeriesRef.current.createPriceLine({
+            price: 50,
+            color: 'rgba(255, 255, 255, 0.15)',
+            lineWidth: 1,
+            lineStyle: 1,
+            axisLabelVisible: false,
+            title: '50',
+          });
+          rsiLowerBandRef.current = rsiSeriesRef.current.createPriceLine({
+            price: 30,
+            color: 'rgba(255, 255, 255, 0.35)',
+            lineWidth: 1,
+            lineStyle: 2,
+            axisLabelVisible: true,
+            title: '30',
+          });
+        } catch {}
+      }
+      const data = calculateRSI(candles, 14);
+      if (data.length > 0) {
+        rsiSeriesRef.current.setData(data.map((d) => ({ time: d.time as Time, value: d.value })));
+      }
+    } else if (rsiSeriesRef.current) {
+      try {
+        if (rsiUpperBandRef.current && rsiSeriesRef.current) {
+          rsiSeriesRef.current.removePriceLine(rsiUpperBandRef.current);
+          rsiUpperBandRef.current = null;
+        }
+        if (rsiMiddleBandRef.current && rsiSeriesRef.current) {
+          rsiSeriesRef.current.removePriceLine(rsiMiddleBandRef.current);
+          rsiMiddleBandRef.current = null;
+        }
+        if (rsiLowerBandRef.current && rsiSeriesRef.current) {
+          rsiSeriesRef.current.removePriceLine(rsiLowerBandRef.current);
+          rsiLowerBandRef.current = null;
+        }
+        if (rsiSeriesRef.current) chart.removeSeries(rsiSeriesRef.current);
+      } catch {}
+      rsiSeriesRef.current = null;
+    }
+
     // MACD (12, 26, 9)
     if (indicators.macd) {
       if (!macdLineRef.current) {
@@ -955,6 +1027,11 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           {indicators.volume ? ' · VOL' : ''}
           {indicators.sma20 ? ' · SMA20' : ''}
           {indicators.ema50 ? ' · EMA50' : ''}
+          {indicators.ema200 ? ' · EMA200' : ''}
+          {indicators.bollinger ? ' · BB(20,2)' : ''}
+          {indicators.rsi ? ' · RSI(14)' : ''}
+          {indicators.macd ? ' · MACD' : ''}
+          {indicators.stochastic ? ' · STOCH' : ''}
         </span>
         {legend.open !== undefined && (
           <div className="legend-ohlc">
