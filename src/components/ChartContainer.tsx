@@ -35,6 +35,7 @@ interface ChartContainerProps {
   indicators: IndicatorConfig;
   symbol: string;
   activeTool: DrawingTool;
+  onSelectTool?: (tool: DrawingTool) => void;
   clearTrigger: number;
   customPlots?: PinePlot[];
   ictSettings?: ICTSettings;
@@ -49,6 +50,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   indicators,
   symbol,
   activeTool,
+  onSelectTool,
   clearTrigger,
   customPlots = [],
   ictSettings,
@@ -125,6 +127,138 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   const triggerOverlayUpdate = () => {
     setOverlayTick((t) => (t + 1) % 1000000);
   };
+
+  // Measure Ruler Tool State
+  interface MeasurePoint {
+    time: number;
+    price: number;
+    x: number;
+    y: number;
+  }
+
+  interface MeasureData {
+    start: MeasurePoint;
+    end: MeasurePoint;
+    isPinned: boolean;
+  }
+
+  const [measureData, setMeasureData] = useState<MeasureData | null>(null);
+  const measureDataRef = useRef<MeasureData | null>(null);
+  measureDataRef.current = measureData;
+  const isDraggingMeasureRef = useRef(false);
+  const [isShiftDown, setIsShiftDown] = useState(false);
+
+  const getTimeFromX = (x: number): number => {
+    if (!chartRef.current || candles.length === 0) return Date.now() / 1000;
+    const time = chartRef.current.timeScale().coordinateToTime(x);
+    if (time !== null && typeof time === 'number') {
+      return time;
+    }
+    const container = chartContainerRef.current;
+    const width = container ? container.clientWidth : 800;
+    if (x >= width) {
+      return candles[candles.length - 1].time;
+    }
+    if (x <= 0) {
+      return candles[0].time;
+    }
+    return candles[candles.length - 1].time;
+  };
+
+  const getPriceFromY = (y: number): number => {
+    if (!mainSeriesRef.current || candles.length === 0) return 0;
+    const price = mainSeriesRef.current.coordinateToPrice(y);
+    if (price !== null) return price;
+    return candles[candles.length - 1].close;
+  };
+
+  const activeMeasureDisplay = useMemo(() => {
+    if (!measureData) return null;
+    const ts = chartRef.current?.timeScale();
+    const ms = mainSeriesRef.current;
+
+    let x1 = measureData.start.x;
+    let y1 = measureData.start.y;
+    let x2 = measureData.end.x;
+    let y2 = measureData.end.y;
+
+    if (measureData.isPinned && ts && ms) {
+      const cX1 = ts.timeToCoordinate(measureData.start.time as any);
+      const cY1 = ms.priceToCoordinate(measureData.start.price);
+      const cX2 = ts.timeToCoordinate(measureData.end.time as any);
+      const cY2 = ms.priceToCoordinate(measureData.end.price);
+      if (cX1 !== null) x1 = cX1;
+      if (cY1 !== null) y1 = cY1;
+      if (cX2 !== null) x2 = cX2;
+      if (cY2 !== null) y2 = cY2;
+    }
+
+    const left = Math.min(x1, x2);
+    const top = Math.min(y1, y2);
+    const width = Math.abs(x2 - x1);
+    const height = Math.abs(y2 - y1);
+
+    const startPrice = measureData.start.price;
+    const endPrice = measureData.end.price;
+    const priceDiff = endPrice - startPrice;
+    const percentChange = startPrice !== 0 ? (priceDiff / startPrice) * 100 : 0;
+    const isBullish = priceDiff >= 0;
+
+    let barsCount = 1;
+    if (candles.length > 0) {
+      const minT = Math.min(measureData.start.time, measureData.end.time);
+      const maxT = Math.max(measureData.start.time, measureData.end.time);
+      const startIdx = candles.findIndex((c) => c.time >= minT);
+      let endIdx = -1;
+      for (let i = candles.length - 1; i >= 0; i--) {
+        if (candles[i].time <= maxT) {
+          endIdx = i;
+          break;
+        }
+      }
+      if (startIdx !== -1 && endIdx !== -1 && endIdx >= startIdx) {
+        barsCount = endIdx - startIdx + 1;
+      }
+    }
+
+    const timeDiffSec = Math.abs(measureData.end.time - measureData.start.time);
+    let timeStr = '';
+    if (timeDiffSec >= 86400) {
+      const days = Math.floor(timeDiffSec / 86400);
+      const hours = Math.floor((timeDiffSec % 86400) / 3600);
+      timeStr = hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+    } else if (timeDiffSec >= 3600) {
+      const hours = Math.floor(timeDiffSec / 3600);
+      const mins = Math.floor((timeDiffSec % 3600) / 60);
+      timeStr = mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    } else {
+      const mins = Math.max(1, Math.round(timeDiffSec / 60));
+      timeStr = `${mins}m`;
+    }
+
+    const containerW = chartContainerRef.current?.clientWidth || 800;
+    const badgeX = Math.max(85, Math.min(containerW - 85, (x1 + x2) / 2));
+    const topBound = Math.min(y1, y2);
+    const badgeY = topBound > 65 ? topBound - 42 : Math.max(y1, y2) + 14;
+
+    return {
+      x1,
+      y1,
+      x2,
+      y2,
+      left,
+      top,
+      width,
+      height,
+      priceDiff,
+      percentChange,
+      isBullish,
+      barsCount,
+      timeStr,
+      badgeX,
+      badgeY,
+    };
+  }, [measureData, overlayTick, candles]);
 
   const overlayPriceLinesRef = useRef<any[]>([]);
 
@@ -946,7 +1080,127 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     }
   }, [customPlots]);
 
-  // 6. Handle Drawing Tools
+  // 6. Handle Drawing Tools & Measure Ruler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftDown(true);
+      }
+      if (e.key === 'Escape') {
+        setMeasureData(null);
+        isDraggingMeasureRef.current = false;
+        if (activeTool === 'measure' || activeTool === 'price_range') {
+          onSelectTool?.('crosshair');
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftDown(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [activeTool, onSelectTool]);
+
+  // Disable Lightweight Charts canvas drag-scrolling while measuring
+  useEffect(() => {
+    if (!chartRef.current) return;
+    const isMeasuring = activeTool === 'measure' || activeTool === 'price_range' || isShiftDown;
+    chartRef.current.applyOptions({
+      handleScroll: isMeasuring
+        ? { mouseWheel: true, pressedMouseMove: false, horzTouchDrag: false, vertTouchDrag: false }
+        : { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
+    });
+  }, [activeTool, isShiftDown]);
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('.tv-chart-nav-controls') || target.closest('.tv-measure-badge')) {
+      return;
+    }
+
+    const isMeasureTool = activeTool === 'measure' || activeTool === 'price_range' || e.shiftKey;
+    if (!isMeasureTool) return;
+    if (!chartRef.current || !mainSeriesRef.current || !chartContainerRef.current) return;
+
+    const rect = chartContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const price = getPriceFromY(y);
+    const time = getTimeFromX(x);
+
+    // If an unpinned measurement is already active (click -> move -> click mode), pin it
+    if (measureDataRef.current && !measureDataRef.current.isPinned) {
+      setMeasureData({
+        ...measureDataRef.current,
+        end: { time, price, x, y },
+        isPinned: true,
+      });
+      isDraggingMeasureRef.current = false;
+      return;
+    }
+
+    // Start fresh measurement
+    const newPoint: MeasurePoint = { time, price, x, y };
+    setMeasureData({
+      start: newPoint,
+      end: newPoint,
+      isPinned: false,
+    });
+    isDraggingMeasureRef.current = true;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!measureDataRef.current || measureDataRef.current.isPinned) return;
+    if (!chartRef.current || !mainSeriesRef.current || !chartContainerRef.current) return;
+
+    const rect = chartContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const price = getPriceFromY(y);
+    const time = getTimeFromX(x);
+
+    setMeasureData((prev) => {
+      if (!prev || prev.isPinned) return prev;
+      return {
+        ...prev,
+        end: { time, price, x, y },
+      };
+    });
+  };
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingMeasureRef.current) return;
+    isDraggingMeasureRef.current = false;
+
+    if (!chartContainerRef.current) return;
+    const rect = chartContainerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (measureDataRef.current && !measureDataRef.current.isPinned) {
+      const dx = x - measureDataRef.current.start.x;
+      const dy = y - measureDataRef.current.start.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist > 6) {
+        const price = getPriceFromY(y);
+        const time = getTimeFromX(x);
+        setMeasureData((prev) => (prev ? { ...prev, end: { time, price, x, y }, isPinned: true } : null));
+      }
+    }
+  };
+
   const handleChartClick = (e: React.MouseEvent) => {
     if (activeTool === 'horizontal' && mainSeriesRef.current && chartRef.current && chartContainerRef.current) {
       const rect = chartContainerRef.current.getBoundingClientRect();
@@ -968,13 +1222,16 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
   // 7. Clear Drawings
   useEffect(() => {
-    if (clearTrigger > 0 && mainSeriesRef.current) {
-      priceLinesRef.current.forEach((line: any) => {
-        try {
-          mainSeriesRef.current?.removePriceLine(line);
-        } catch {}
-      });
-      priceLinesRef.current = [];
+    if (clearTrigger > 0) {
+      if (mainSeriesRef.current) {
+        priceLinesRef.current.forEach((line: any) => {
+          try {
+            mainSeriesRef.current?.removePriceLine(line);
+          } catch {}
+        });
+        priceLinesRef.current = [];
+      }
+      setMeasureData(null);
     }
   }, [clearTrigger]);
 
@@ -1046,7 +1303,16 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   };
 
   return (
-    <div className="chart-wrapper" onClick={handleChartClick}>
+    <div
+      className="chart-wrapper"
+      onClick={handleChartClick}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      style={{
+        cursor: activeTool === 'measure' || activeTool === 'price_range' || isShiftDown ? 'crosshair' : undefined,
+      }}
+    >
       {/* Legend Top Left */}
       <div className="tv-legend">
         <span className="legend-symbol">{symbol}</span>
@@ -1082,8 +1348,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       {/* Main Lightweight Charts Canvas */}
       <div ref={chartContainerRef} className="chart-canvas" />
 
-      {/* SVG Overlay for ICT Killzones Rays & ORB Levels */}
-      {(indicators.ictKillzones || indicators.orb) && (
+      {/* SVG Overlay for ICT Killzones Rays, ORB Levels & Ruler */}
+      {(indicators.ictKillzones || indicators.orb || activeMeasureDisplay) && (
         <svg
           style={{
             position: 'absolute',
@@ -1152,7 +1418,116 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               {t.text}
             </text>
           ))}
+
+          {/* Active Ruler Measurement */}
+          {activeMeasureDisplay && (
+            <g className="tv-measure-overlay">
+              <rect
+                x={activeMeasureDisplay.left}
+                y={activeMeasureDisplay.top}
+                width={Math.max(1, activeMeasureDisplay.width)}
+                height={Math.max(1, activeMeasureDisplay.height)}
+                fill={activeMeasureDisplay.isBullish ? 'rgba(8, 153, 129, 0.16)' : 'rgba(242, 54, 69, 0.16)'}
+                stroke={activeMeasureDisplay.isBullish ? '#089981' : '#f23645'}
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                rx={2}
+              />
+              <line
+                x1={activeMeasureDisplay.x1}
+                y1={activeMeasureDisplay.y1}
+                x2={activeMeasureDisplay.x2}
+                y2={activeMeasureDisplay.y2}
+                stroke={activeMeasureDisplay.isBullish ? '#089981' : '#f23645'}
+                strokeWidth={1.5}
+              />
+              <circle
+                cx={activeMeasureDisplay.x1}
+                cy={activeMeasureDisplay.y1}
+                r={3.5}
+                fill="#131722"
+                stroke={activeMeasureDisplay.isBullish ? '#089981' : '#f23645'}
+                strokeWidth={2}
+              />
+              <circle
+                cx={activeMeasureDisplay.x2}
+                cy={activeMeasureDisplay.y2}
+                r={3.5}
+                fill="#ffffff"
+                stroke={activeMeasureDisplay.isBullish ? '#089981' : '#f23645'}
+                strokeWidth={2}
+              />
+            </g>
+          )}
         </svg>
+      )}
+
+      {/* Floating Measurement Info Badge */}
+      {activeMeasureDisplay && (
+        <div
+          className="tv-measure-badge"
+          style={{
+            position: 'absolute',
+            left: `${activeMeasureDisplay.badgeX}px`,
+            top: `${activeMeasureDisplay.badgeY}px`,
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            backgroundColor: 'rgba(19, 23, 34, 0.94)',
+            backdropFilter: 'blur(6px)',
+            border: `1px solid ${activeMeasureDisplay.isBullish ? '#089981' : '#f23645'}`,
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
+            borderRadius: '6px',
+            padding: '5px 9px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px',
+            pointerEvents: 'auto',
+            userSelect: 'none',
+            whiteSpace: 'nowrap',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <span
+              style={{
+                color: activeMeasureDisplay.isBullish ? '#089981' : '#f23645',
+                fontSize: '12px',
+                fontWeight: 700,
+                letterSpacing: '0.2px',
+              }}
+            >
+              {activeMeasureDisplay.priceDiff >= 0 ? '+' : ''}
+              {activeMeasureDisplay.priceDiff.toFixed(2)} (
+              {activeMeasureDisplay.percentChange >= 0 ? '+' : ''}
+              {activeMeasureDisplay.percentChange.toFixed(2)}%)
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMeasureData(null);
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                fontSize: '14px',
+                lineHeight: 1,
+                padding: '0 2px',
+                borderRadius: '2px',
+              }}
+              title="Cerrar regla (Esc)"
+            >
+              ×
+            </button>
+          </div>
+          <div style={{ color: '#94a3b8', fontSize: '10px', display: 'flex', gap: '6px' }}>
+            <span>{activeMeasureDisplay.barsCount} {activeMeasureDisplay.barsCount === 1 ? 'barra' : 'barras'}</span>
+            <span>·</span>
+            <span>{activeMeasureDisplay.timeStr}</span>
+          </div>
+        </div>
       )}
 
       {/* ICT Range Data & Pivots HUD Table */}

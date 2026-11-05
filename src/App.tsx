@@ -612,6 +612,7 @@ export const App: React.FC = () => {
             indicators={indicators}
             symbol={symbol}
             activeTool={activeTool}
+            onSelectTool={setActiveTool}
             clearTrigger={clearTrigger}
             customPlots={activePlots}
             ictSettings={ictSettings}
