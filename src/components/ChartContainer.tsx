@@ -739,7 +739,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         smaSeriesRef.current = chart.addSeries(LineSeries, {
           color: '#f5a623',
           lineWidth: 2,
-          title: 'SMA 20',
+          priceLineVisible: false,
+          lastValueVisible: false,
         });
       }
       const data = calculateSMA(candles, 20);
@@ -757,7 +758,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         ema50SeriesRef.current = chart.addSeries(LineSeries, {
           color: '#00d4ff',
           lineWidth: 2,
-          title: 'EMA 50',
+          priceLineVisible: false,
+          lastValueVisible: false,
         });
       }
       const data = calculateEMA(candles, 50);
@@ -775,7 +777,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         ema200SeriesRef.current = chart.addSeries(LineSeries, {
           color: '#9b51e0',
           lineWidth: 2,
-          title: 'EMA 200',
+          priceLineVisible: false,
+          lastValueVisible: false,
         });
       }
       const data = calculateEMA(candles, 200);
@@ -793,17 +796,20 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         bbUpperRef.current = chart.addSeries(LineSeries, {
           color: 'rgba(41, 98, 255, 0.5)',
           lineWidth: 1,
-          title: 'BB Upper',
+          priceLineVisible: false,
+          lastValueVisible: false,
         });
         bbMiddleRef.current = chart.addSeries(LineSeries, {
           color: 'rgba(255, 152, 0, 0.7)',
           lineWidth: 1,
-          title: 'BB Basis',
+          priceLineVisible: false,
+          lastValueVisible: false,
         });
         bbLowerRef.current = chart.addSeries(LineSeries, {
           color: 'rgba(41, 98, 255, 0.5)',
           lineWidth: 1,
-          title: 'BB Lower',
+          priceLineVisible: false,
+          lastValueVisible: false,
         });
       }
       const data = calculateBollingerBands(candles, 20, 2);
@@ -847,7 +853,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         rsiSeriesRef.current = chart.addSeries(LineSeries, {
           color: showRsi ? rsiColor : 'transparent',
           lineWidth: rsiLineWidth,
-          title: `RSI (${rsiPeriod}, ${rsiSource})`,
+          priceLineVisible: false,
+          lastValueVisible: false,
           priceScaleId: 'rsi_scale',
         });
         chart.priceScale('rsi_scale').applyOptions({
@@ -863,8 +870,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               color: upperColor,
               lineWidth: 1,
               lineStyle: 2,
-              axisLabelVisible: true,
-              title: `${rsiUpper}`,
+              axisLabelVisible: false,
+              title: '',
             });
           }
           if (showMiddle) {
@@ -874,7 +881,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               lineWidth: 1,
               lineStyle: 1,
               axisLabelVisible: false,
-              title: `${rsiMiddle}`,
+              title: '',
             });
           }
           if (showLower) {
@@ -883,8 +890,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               color: lowerColor,
               lineWidth: 1,
               lineStyle: 2,
-              axisLabelVisible: true,
-              title: `${rsiLower}`,
+              axisLabelVisible: false,
+              title: '',
             });
           }
         } catch {}
@@ -892,12 +899,13 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         rsiSeriesRef.current.applyOptions({
           color: showRsi ? rsiColor : 'transparent',
           lineWidth: rsiLineWidth,
-          title: `RSI (${rsiPeriod}, ${rsiSource})`,
+          priceLineVisible: false,
+          lastValueVisible: false,
         });
         if (rsiUpperBandRef.current) {
           try {
             if (showUpper) {
-              rsiUpperBandRef.current.applyOptions({ price: rsiUpper, color: upperColor, title: `${rsiUpper}` });
+              rsiUpperBandRef.current.applyOptions({ price: rsiUpper, color: upperColor, axisLabelVisible: false, title: '' });
             } else {
               rsiSeriesRef.current.removePriceLine(rsiUpperBandRef.current);
               rsiUpperBandRef.current = null;
@@ -910,15 +918,15 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               color: upperColor,
               lineWidth: 1,
               lineStyle: 2,
-              axisLabelVisible: true,
-              title: `${rsiUpper}`,
+              axisLabelVisible: false,
+              title: '',
             });
           } catch {}
         }
         if (rsiMiddleBandRef.current) {
           try {
             if (showMiddle) {
-              rsiMiddleBandRef.current.applyOptions({ price: rsiMiddle, color: middleColor, title: `${rsiMiddle}` });
+              rsiMiddleBandRef.current.applyOptions({ price: rsiMiddle, color: middleColor, axisLabelVisible: false, title: '' });
             } else {
               rsiSeriesRef.current.removePriceLine(rsiMiddleBandRef.current);
               rsiMiddleBandRef.current = null;
@@ -932,14 +940,14 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               lineWidth: 1,
               lineStyle: 1,
               axisLabelVisible: false,
-              title: `${rsiMiddle}`,
+              title: '',
             });
           } catch {}
         }
         if (rsiLowerBandRef.current) {
           try {
             if (showLower) {
-              rsiLowerBandRef.current.applyOptions({ price: rsiLower, color: lowerColor, title: `${rsiLower}` });
+              rsiLowerBandRef.current.applyOptions({ price: rsiLower, color: lowerColor, axisLabelVisible: false, title: '' });
             } else {
               rsiSeriesRef.current.removePriceLine(rsiLowerBandRef.current);
               rsiLowerBandRef.current = null;
@@ -952,8 +960,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
               color: lowerColor,
               lineWidth: 1,
               lineStyle: 2,
-              axisLabelVisible: true,
-              title: `${rsiLower}`,
+              axisLabelVisible: false,
+              title: '',
             });
           } catch {}
         }
@@ -965,14 +973,16 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           rsiMaSeriesRef.current = chart.addSeries(LineSeries, {
             color: maColor,
             lineWidth: maLineWidth,
-            title: `RSI ${rsiMaType} (${rsiMaLength})`,
+            priceLineVisible: false,
+            lastValueVisible: false,
             priceScaleId: 'rsi_scale',
           });
         } else {
           rsiMaSeriesRef.current.applyOptions({
             color: maColor,
             lineWidth: maLineWidth,
-            title: `RSI ${rsiMaType} (${rsiMaLength})`,
+            priceLineVisible: false,
+            lastValueVisible: false,
           });
         }
       } else if (rsiMaSeriesRef.current) {
@@ -1017,18 +1027,21 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         macdLineRef.current = chart.addSeries(LineSeries, {
           color: '#2962ff',
           lineWidth: 2,
-          title: 'MACD (12, 26)',
+          priceLineVisible: false,
+          lastValueVisible: false,
           priceScaleId: 'macd_scale',
         });
         macdSignalRef.current = chart.addSeries(LineSeries, {
           color: '#ff6d00',
           lineWidth: 1,
-          title: 'Signal (9)',
+          priceLineVisible: false,
+          lastValueVisible: false,
           priceScaleId: 'macd_scale',
         });
         macdHistRef.current = chart.addSeries(HistogramSeries, {
           color: '#26a69a',
-          title: 'Histogram',
+          priceLineVisible: false,
+          lastValueVisible: false,
           priceScaleId: 'macd_scale',
         });
         chart.priceScale('macd_scale').applyOptions({
@@ -1075,13 +1088,15 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         stochKRef.current = chart.addSeries(LineSeries, {
           color: stochKColor,
           lineWidth: 2,
-          title: `%K (${stochPeriod}, ${stochSmoothK})`,
+          priceLineVisible: false,
+          lastValueVisible: false,
           priceScaleId: 'stoch_scale',
         });
         stochDRef.current = chart.addSeries(LineSeries, {
           color: stochDColor,
           lineWidth: 1,
-          title: `%D (${stochSmoothD})`,
+          priceLineVisible: false,
+          lastValueVisible: false,
           priceScaleId: 'stoch_scale',
         });
         chart.priceScale('stoch_scale').applyOptions({
@@ -1096,35 +1111,37 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
             color: 'rgba(255, 255, 255, 0.25)',
             lineWidth: 1,
             lineStyle: 2,
-            axisLabelVisible: true,
-            title: `${stochUpper}`,
+            axisLabelVisible: false,
+            title: '',
           });
           stochLowerBandRef.current = stochKRef.current.createPriceLine({
             price: stochLower,
             color: 'rgba(255, 255, 255, 0.25)',
             lineWidth: 1,
             lineStyle: 2,
-            axisLabelVisible: true,
-            title: `${stochLower}`,
+            axisLabelVisible: false,
+            title: '',
           });
         } catch {}
       } else {
         stochKRef.current.applyOptions({
           color: stochKColor,
-          title: `%K (${stochPeriod}, ${stochSmoothK})`,
+          priceLineVisible: false,
+          lastValueVisible: false,
         });
         stochDRef.current?.applyOptions({
           color: stochDColor,
-          title: `%D (${stochSmoothD})`,
+          priceLineVisible: false,
+          lastValueVisible: false,
         });
         if (stochUpperBandRef.current) {
           try {
-            stochUpperBandRef.current.applyOptions({ price: stochUpper, title: `${stochUpper}` });
+            stochUpperBandRef.current.applyOptions({ price: stochUpper, axisLabelVisible: false, title: '' });
           } catch {}
         }
         if (stochLowerBandRef.current) {
           try {
-            stochLowerBandRef.current.applyOptions({ price: stochLower, title: `${stochLower}` });
+            stochLowerBandRef.current.applyOptions({ price: stochLower, axisLabelVisible: false, title: '' });
           } catch {}
         }
       }
@@ -1172,7 +1189,8 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
             color: plot.color,
             lineWidth: (plot.lineWidth || 2) as any,
             lineStyle: (plot.lineStyle !== undefined ? plot.lineStyle : 0) as any,
-            title: plot.title,
+            priceLineVisible: false,
+            lastValueVisible: false,
           });
           s.setData(plot.data.map((d) => ({ time: d.time as Time, value: d.value })));
           pineSeriesRef.current.set(plot.id, s);
