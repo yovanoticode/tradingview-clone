@@ -217,6 +217,14 @@ export function calculateStochastic(
   return result;
 }
 
+export const DEFAULT_RSI_SETTINGS: import('../types').RSISettings = {
+  period: 14,
+  color: '#7e57c2',
+  upperBand: 70,
+  middleBand: 50,
+  lowerBand: 30,
+};
+
 export const DEFAULT_STOCHASTIC_SETTINGS: import('../types').StochasticSettings = {
   period: 14,
   smoothK: 3,

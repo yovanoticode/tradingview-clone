@@ -14,7 +14,7 @@ import type {
   ISeriesApi,
   Time,
 } from 'lightweight-charts';
-import type { Candle, ChartType, DrawingTool, IndicatorConfig, ICTSettings, ChartTimezone, StochasticSettings } from '../types';
+import type { Candle, ChartType, DrawingTool, IndicatorConfig, ICTSettings, ChartTimezone, StochasticSettings, RSISettings } from '../types';
 import {
   calculateBollingerBands,
   calculateEMA,
@@ -39,6 +39,7 @@ interface ChartContainerProps {
   customPlots?: PinePlot[];
   ictSettings?: ICTSettings;
   stochasticSettings?: StochasticSettings;
+  rsiSettings?: RSISettings;
   timezone?: ChartTimezone;
 }
 
@@ -52,6 +53,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   customPlots = [],
   ictSettings,
   stochasticSettings,
+  rsiSettings,
   timezone = 'America/Bogota',
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -683,13 +685,19 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       bbLowerRef.current = null;
     }
 
-    // RSI (14)
+    // RSI Oscillator
     if (indicators.rsi) {
+      const rsiPeriod = rsiSettings?.period ?? 14;
+      const rsiColor = rsiSettings?.color ?? '#7e57c2';
+      const rsiUpper = rsiSettings?.upperBand ?? 70;
+      const rsiMiddle = rsiSettings?.middleBand ?? 50;
+      const rsiLower = rsiSettings?.lowerBand ?? 30;
+
       if (!rsiSeriesRef.current) {
         rsiSeriesRef.current = chart.addSeries(LineSeries, {
-          color: '#7e57c2',
+          color: rsiColor,
           lineWidth: 2,
-          title: 'RSI (14)',
+          title: `RSI (${rsiPeriod})`,
           priceScaleId: 'rsi_scale',
         });
         chart.priceScale('rsi_scale').applyOptions({
@@ -700,32 +708,52 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         });
         try {
           rsiUpperBandRef.current = rsiSeriesRef.current.createPriceLine({
-            price: 70,
+            price: rsiUpper,
             color: 'rgba(255, 255, 255, 0.35)',
             lineWidth: 1,
             lineStyle: 2,
             axisLabelVisible: true,
-            title: '70',
+            title: `${rsiUpper}`,
           });
           rsiMiddleBandRef.current = rsiSeriesRef.current.createPriceLine({
-            price: 50,
+            price: rsiMiddle,
             color: 'rgba(255, 255, 255, 0.15)',
             lineWidth: 1,
             lineStyle: 1,
             axisLabelVisible: false,
-            title: '50',
+            title: `${rsiMiddle}`,
           });
           rsiLowerBandRef.current = rsiSeriesRef.current.createPriceLine({
-            price: 30,
+            price: rsiLower,
             color: 'rgba(255, 255, 255, 0.35)',
             lineWidth: 1,
             lineStyle: 2,
             axisLabelVisible: true,
-            title: '30',
+            title: `${rsiLower}`,
           });
         } catch {}
+      } else {
+        rsiSeriesRef.current.applyOptions({
+          color: rsiColor,
+          title: `RSI (${rsiPeriod})`,
+        });
+        if (rsiUpperBandRef.current) {
+          try {
+            rsiUpperBandRef.current.applyOptions({ price: rsiUpper, title: `${rsiUpper}` });
+          } catch {}
+        }
+        if (rsiMiddleBandRef.current) {
+          try {
+            rsiMiddleBandRef.current.applyOptions({ price: rsiMiddle, title: `${rsiMiddle}` });
+          } catch {}
+        }
+        if (rsiLowerBandRef.current) {
+          try {
+            rsiLowerBandRef.current.applyOptions({ price: rsiLower, title: `${rsiLower}` });
+          } catch {}
+        }
       }
-      const data = calculateRSI(candles, 14);
+      const data = calculateRSI(candles, rsiPeriod);
       if (data.length > 0) {
         rsiSeriesRef.current.setData(data.map((d) => ({ time: d.time as Time, value: d.value })));
       }
@@ -886,7 +914,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       stochKRef.current = null;
       stochDRef.current = null;
     }
-  }, [indicators, candles, stochasticSettings]);
+  }, [indicators, candles, stochasticSettings, rsiSettings]);
 
   // 5.1 Custom Pine Script Plots
   useEffect(() => {
@@ -1029,7 +1057,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           {indicators.ema50 ? ' · EMA50' : ''}
           {indicators.ema200 ? ' · EMA200' : ''}
           {indicators.bollinger ? ' · BB(20,2)' : ''}
-          {indicators.rsi ? ' · RSI(14)' : ''}
+          {indicators.rsi ? ` · RSI(${rsiSettings?.period ?? 14})` : ''}
           {indicators.macd ? ' · MACD' : ''}
           {indicators.stochastic ? ' · STOCH' : ''}
         </span>

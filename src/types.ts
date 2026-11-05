@@ -42,6 +42,14 @@ export type DrawingTool =
   | 'zoom'
   | 'none';
 
+export interface RSISettings {
+  period: number;
+  color: string;
+  upperBand: number;
+  middleBand: number;
+  lowerBand: number;
+}
+
 export interface StochasticSettings {
   period: number;
   smoothK: number;
@@ -172,6 +180,7 @@ export interface ChartLayout {
   indicators: IndicatorConfig;
   ictSettings: ICTSettings;
   stochasticSettings?: StochasticSettings;
+  rsiSettings?: RSISettings;
   isFavorite?: boolean;
   lastModified: number;
 }

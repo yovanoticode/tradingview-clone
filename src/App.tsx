@@ -6,11 +6,11 @@ import { RightSidebar } from './components/RightSidebar';
 import { BottomBar } from './components/BottomBar';
 import { TradovatePanel } from './components/TradovatePanel';
 import { PineEditor } from './components/PineEditor';
-import type { Candle, ChartType, DrawingTool, IndicatorConfig, Timeframe, ICTSettings, ChartLayout, ChartTimezone, StochasticSettings } from './types';
+import type { Candle, ChartType, DrawingTool, IndicatorConfig, Timeframe, ICTSettings, ChartLayout, ChartTimezone, StochasticSettings, RSISettings } from './types';
 import type { PinePlot } from './services/pineEngine';
 import { fetchHistoricalKlines, subscribeToKlines } from './services/binanceService';
 import { TradovateService, fetchRealMNQKlines } from './services/tradovateService';
-import { calculateICTPlots, DEFAULT_ICT_SETTINGS, DEFAULT_STOCHASTIC_SETTINGS } from './services/indicators';
+import { calculateICTPlots, DEFAULT_ICT_SETTINGS, DEFAULT_STOCHASTIC_SETTINGS, DEFAULT_RSI_SETTINGS } from './services/indicators';
 import './index.css';
 
 const DEFAULT_LAYOUTS: ChartLayout[] = [
@@ -34,6 +34,7 @@ const DEFAULT_LAYOUTS: ChartLayout[] = [
     },
     ictSettings: DEFAULT_ICT_SETTINGS,
     stochasticSettings: DEFAULT_STOCHASTIC_SETTINGS,
+    rsiSettings: DEFAULT_RSI_SETTINGS,
     isFavorite: true,
     lastModified: Date.now(),
   },
@@ -57,6 +58,7 @@ const DEFAULT_LAYOUTS: ChartLayout[] = [
     },
     ictSettings: DEFAULT_ICT_SETTINGS,
     stochasticSettings: DEFAULT_STOCHASTIC_SETTINGS,
+    rsiSettings: DEFAULT_RSI_SETTINGS,
     isFavorite: true,
     lastModified: Date.now() - 3600000,
   },
@@ -80,6 +82,7 @@ const DEFAULT_LAYOUTS: ChartLayout[] = [
     },
     ictSettings: DEFAULT_ICT_SETTINGS,
     stochasticSettings: DEFAULT_STOCHASTIC_SETTINGS,
+    rsiSettings: DEFAULT_RSI_SETTINGS,
     isFavorite: true,
     lastModified: Date.now() - 7200000,
   },
@@ -103,6 +106,7 @@ const DEFAULT_LAYOUTS: ChartLayout[] = [
     },
     ictSettings: DEFAULT_ICT_SETTINGS,
     stochasticSettings: DEFAULT_STOCHASTIC_SETTINGS,
+    rsiSettings: DEFAULT_RSI_SETTINGS,
     isFavorite: false,
     lastModified: Date.now() - 10800000,
   },
@@ -190,6 +194,24 @@ export const App: React.FC = () => {
     setStochasticSettings((prev) => {
       const updated = { ...prev, ...newSettings };
       localStorage.setItem('stoch_settings', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const [rsiSettings, setRsiSettings] = useState<RSISettings>(() => {
+    if (initialLayout.rsiSettings) return initialLayout.rsiSettings;
+    try {
+      const saved = localStorage.getItem('rsi_settings');
+      return saved ? { ...DEFAULT_RSI_SETTINGS, ...JSON.parse(saved) } : DEFAULT_RSI_SETTINGS;
+    } catch {
+      return DEFAULT_RSI_SETTINGS;
+    }
+  });
+
+  const updateRsiSettings = (newSettings: Partial<RSISettings>) => {
+    setRsiSettings((prev) => {
+      const updated = { ...prev, ...newSettings };
+      localStorage.setItem('rsi_settings', JSON.stringify(updated));
       return updated;
     });
   };
@@ -341,6 +363,7 @@ export const App: React.FC = () => {
               indicators,
               ictSettings,
               stochasticSettings,
+              rsiSettings,
               lastModified: Date.now(),
             }
           : l
@@ -369,6 +392,10 @@ export const App: React.FC = () => {
       setStochasticSettings(target.stochasticSettings);
       localStorage.setItem('stoch_settings', JSON.stringify(target.stochasticSettings));
     }
+    if (target.rsiSettings) {
+      setRsiSettings(target.rsiSettings);
+      localStorage.setItem('rsi_settings', JSON.stringify(target.rsiSettings));
+    }
   };
 
   const handleCreateNewLayout = (name: string) => {
@@ -381,6 +408,7 @@ export const App: React.FC = () => {
       indicators,
       ictSettings,
       stochasticSettings,
+      rsiSettings,
       isFavorite: false,
       lastModified: Date.now(),
     };
@@ -404,6 +432,7 @@ export const App: React.FC = () => {
       indicators,
       ictSettings,
       stochasticSettings,
+      rsiSettings,
       isFavorite: false,
       lastModified: Date.now(),
     };
@@ -479,7 +508,7 @@ export const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [symbol, timeframe, chartType, indicators, ictSettings, stochasticSettings, activeLayoutId]);
+  }, [symbol, timeframe, chartType, indicators, ictSettings, stochasticSettings, rsiSettings, activeLayoutId]);
 
   // Auto-save sync
   useEffect(() => {
@@ -496,6 +525,7 @@ export const App: React.FC = () => {
                 indicators,
                 ictSettings,
                 stochasticSettings,
+                rsiSettings,
                 lastModified: Date.now(),
               }
             : l
@@ -505,7 +535,7 @@ export const App: React.FC = () => {
       });
     }, 1000);
     return () => clearTimeout(timeout);
-  }, [symbol, timeframe, chartType, indicators, ictSettings, stochasticSettings, activeLayoutId, autoSave]);
+  }, [symbol, timeframe, chartType, indicators, ictSettings, stochasticSettings, rsiSettings, activeLayoutId, autoSave]);
 
   const handleTakeSnapshot = () => {
     const canvas = document.querySelector('.chart-canvas canvas') as HTMLCanvasElement;
@@ -534,6 +564,8 @@ export const App: React.FC = () => {
         onUpdateIctSettings={updateIctSettings}
         stochasticSettings={stochasticSettings}
         onUpdateStochasticSettings={updateStochasticSettings}
+        rsiSettings={rsiSettings}
+        onUpdateRsiSettings={updateRsiSettings}
         currentPrice={currentPrice}
         priceChange={priceChange}
         onTakeSnapshot={handleTakeSnapshot}
@@ -584,6 +616,7 @@ export const App: React.FC = () => {
             customPlots={activePlots}
             ictSettings={ictSettings}
             stochasticSettings={stochasticSettings}
+            rsiSettings={rsiSettings}
             timezone={timezone}
           />
         </main>

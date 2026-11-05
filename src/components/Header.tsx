@@ -17,8 +17,8 @@ import {
   Star,
   Trash2
 } from 'lucide-react';
-import type { ChartType, IndicatorConfig, Timeframe, ICTSettings, ChartLayout, StochasticSettings } from '../types';
-import { DEFAULT_STOCHASTIC_SETTINGS } from '../services/indicators';
+import type { ChartType, IndicatorConfig, Timeframe, ICTSettings, ChartLayout, StochasticSettings, RSISettings } from '../types';
+import { DEFAULT_STOCHASTIC_SETTINGS, DEFAULT_RSI_SETTINGS } from '../services/indicators';
 import { searchBinanceSymbols } from '../services/binanceService';
 
 interface HeaderProps {
@@ -34,6 +34,8 @@ interface HeaderProps {
   onUpdateIctSettings: (newSettings: Partial<ICTSettings>) => void;
   stochasticSettings?: StochasticSettings;
   onUpdateStochasticSettings?: (newSettings: Partial<StochasticSettings>) => void;
+  rsiSettings?: RSISettings;
+  onUpdateRsiSettings?: (newSettings: Partial<RSISettings>) => void;
   currentPrice: number;
   priceChange: number;
   onTakeSnapshot: () => void;
@@ -87,6 +89,8 @@ export const Header: React.FC<HeaderProps> = ({
   onUpdateIctSettings,
   stochasticSettings,
   onUpdateStochasticSettings,
+  rsiSettings,
+  onUpdateRsiSettings,
   currentPrice,
   priceChange,
   onTakeSnapshot,
@@ -110,6 +114,8 @@ export const Header: React.FC<HeaderProps> = ({
   const [ictTab, setIctTab] = useState<'kz' | 'dwm' | 'opens'>('kz');
   const [showStochModal, setShowStochModal] = useState(false);
   const [stochTab, setStochTab] = useState<'inputs' | 'style'>('inputs');
+  const [showRsiModal, setShowRsiModal] = useState(false);
+  const [rsiTab, setRsiTab] = useState<'inputs' | 'style'>('inputs');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Layout Dropdown & Modal State
@@ -562,14 +568,27 @@ export const Header: React.FC<HeaderProps> = ({
               />
               <span>Bandas de Bollinger (20, 2)</span>
             </label>
-            <label className="indicator-toggle">
-              <input
-                type="checkbox"
-                checked={indicators.rsi}
-                onChange={() => onToggleIndicator('rsi')}
-              />
-              <span>RSI 14 (Índice de Fuerza Relativa)</span>
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label className="indicator-toggle" style={{ margin: 0, flex: 1 }}>
+                <input
+                  type="checkbox"
+                  checked={indicators.rsi}
+                  onChange={() => onToggleIndicator('rsi')}
+                />
+                <span>RSI ({rsiSettings?.period ?? 14}) (Índice de Fuerza Relativa)</span>
+              </label>
+              <button
+                className="tv-btn icon-btn"
+                title="Configurar parámetros del RSI"
+                style={{ padding: '2px 6px', height: '24px', marginLeft: '6px' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowRsiModal(true);
+                }}
+              >
+                <Settings size={14} />
+              </button>
+            </div>
             <label className="indicator-toggle">
               <input
                 type="checkbox"
@@ -1226,6 +1245,189 @@ export const Header: React.FC<HeaderProps> = ({
                 className="tv-btn primary-btn"
                 style={{ padding: '6px 18px', fontSize: '12px', background: 'var(--tv-accent)', color: '#fff' }}
                 onClick={() => setShowStochModal(false)}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RSI Settings Modal */}
+      {showRsiModal && (
+        <div className="modal-overlay" onClick={() => setShowRsiModal(false)} style={{ zIndex: 120 }}>
+          <div
+            className="search-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px', padding: '18px 22px', maxHeight: '85vh', overflowY: 'auto' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sliders size={18} color="#7e57c2" />
+                <span style={{ fontSize: '15px', fontWeight: 600, color: '#fff' }}>Parámetros RSI (Relative Strength Index)</span>
+              </div>
+              <button className="close-btn" onClick={() => setShowRsiModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Navigation Tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--tv-border)', marginBottom: '14px', gap: '8px' }}>
+              <button
+                type="button"
+                className={`tv-btn ${rsiTab === 'inputs' ? 'active' : ''}`}
+                style={{ padding: '6px 12px', fontSize: '12px', borderRadius: '4px 4px 0 0' }}
+                onClick={() => setRsiTab('inputs')}
+              >
+                Entrada de datos
+              </button>
+              <button
+                type="button"
+                className={`tv-btn ${rsiTab === 'style' ? 'active' : ''}`}
+                style={{ padding: '6px 12px', fontSize: '12px', borderRadius: '4px 4px 0 0' }}
+                onClick={() => setRsiTab('style')}
+              >
+                Estilo
+              </button>
+            </div>
+
+            {/* TAB 1: INPUTS */}
+            {rsiTab === 'inputs' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Longitud (Periodo):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={rsiSettings?.period ?? 14}
+                    onChange={(e) =>
+                      onUpdateRsiSettings?.({
+                        period: Math.max(1, parseInt(e.target.value, 10) || 1),
+                      })
+                    }
+                    style={{
+                      width: '70px',
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textAlign: 'right',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: STYLE */}
+            {rsiTab === 'style' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: rsiSettings?.color || '#7e57c2' }} />
+                    Color de la línea RSI:
+                  </label>
+                  <input
+                    type="color"
+                    value={rsiSettings?.color || '#7e57c2'}
+                    onChange={(e) => onUpdateRsiSettings?.({ color: e.target.value })}
+                    style={{ width: '32px', height: '26px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                  />
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--tv-border)', margin: '4px 0' }} />
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Banda Superior (Sobrecompra):</label>
+                  <input
+                    type="number"
+                    min="50"
+                    max="100"
+                    value={rsiSettings?.upperBand ?? 70}
+                    onChange={(e) =>
+                      onUpdateRsiSettings?.({
+                        upperBand: parseInt(e.target.value, 10) || 70,
+                      })
+                    }
+                    style={{
+                      width: '70px',
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textAlign: 'right',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Banda Media (Línea Central):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={rsiSettings?.middleBand ?? 50}
+                    onChange={(e) =>
+                      onUpdateRsiSettings?.({
+                        middleBand: parseInt(e.target.value, 10) || 50,
+                      })
+                    }
+                    style={{
+                      width: '70px',
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textAlign: 'right',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ color: '#cbd5e1', fontWeight: 500 }}>Banda Inferior (Sobreventa):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="50"
+                    value={rsiSettings?.lowerBand ?? 30}
+                    onChange={(e) =>
+                      onUpdateRsiSettings?.({
+                        lowerBand: parseInt(e.target.value, 10) || 30,
+                      })
+                    }
+                    style={{
+                      width: '70px',
+                      background: '#1e222d',
+                      border: '1px solid #2a2e39',
+                      color: '#fff',
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      textAlign: 'right',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                className="tv-btn"
+                style={{ padding: '6px 12px', fontSize: '12px', color: '#94a3b8' }}
+                onClick={() => onUpdateRsiSettings?.(DEFAULT_RSI_SETTINGS)}
+              >
+                Restablecer
+              </button>
+              <button
+                className="tv-btn primary-btn"
+                style={{ padding: '6px 18px', fontSize: '12px', background: 'var(--tv-accent)', color: '#fff' }}
+                onClick={() => setShowRsiModal(false)}
               >
                 Aceptar
               </button>
