@@ -583,6 +583,8 @@ export async function fetchRealMNQKlines(timeframe: Timeframe): Promise<Candle[]
     else if (timeframe === '1h') { interval = '1h'; range = '1mo'; }
     else if (timeframe === '4h') { interval = '1h'; range = '1mo'; }
     else if (timeframe === '1d') { interval = '1d'; range = '6mo'; }
+    else if (timeframe === '1w') { interval = '1wk'; range = '2y'; }
+    else if (timeframe === '1M') { interval = '1mo'; range = '5y'; }
 
     const res = await fetch(`/api-yahoo/v8/finance/chart/MNQ=F?interval=${interval}&range=${range}`);
     if (res.ok) {
@@ -598,6 +600,8 @@ export async function fetchRealMNQKlines(timeframe: Timeframe): Promise<Candle[]
           '1h': 3600,
           '4h': 14400,
           '1d': 86400,
+          '1w': 604800,
+          '1M': 2592000,
         };
         const step = timeframeSeconds[timeframe] || 60;
         const candleMap = new Map<number, Candle>();

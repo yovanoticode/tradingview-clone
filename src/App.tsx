@@ -291,6 +291,8 @@ export const App: React.FC = () => {
         '1h': 3600,
         '4h': 14400,
         '1d': 86400,
+        '1w': 604800,
+        '1M': 2592000,
       };
       const step = timeframeSeconds[timeframe] || 60;
       const bucketTime = Math.floor(incoming.time / step) * step;

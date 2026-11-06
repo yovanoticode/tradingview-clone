@@ -67,13 +67,15 @@ const AVAILABLE_SYMBOLS = [
   { symbol: 'TSLA', name: 'Tesla Inc.', price: '215.80', change: '-1.4%', isCrypto: false },
 ];
 
-const TIMEFRAMES: { label: string; value: Timeframe }[] = [
-  { label: '1m', value: '1m' },
-  { label: '5m', value: '5m' },
-  { label: '15m', value: '15m' },
-  { label: '1h', value: '1h' },
-  { label: '4h', value: '4h' },
-  { label: '1D', value: '1d' },
+const TIMEFRAMES: { label: string; value: Timeframe; title?: string }[] = [
+  { label: '1m', value: '1m', title: '1 Minuto' },
+  { label: '5m', value: '5m', title: '5 Minutos' },
+  { label: '15m', value: '15m', title: '15 Minutos' },
+  { label: '1h', value: '1h', title: '1 Hora' },
+  { label: '4h', value: '4h', title: '4 Horas' },
+  { label: '1D', value: '1d', title: '1 Día' },
+  { label: '1S', value: '1w', title: '1 Semana (Semanal)' },
+  { label: '1M', value: '1M', title: '1 Mes (Mensual)' },
 ];
 
 export const Header: React.FC<HeaderProps> = ({
@@ -243,6 +245,7 @@ export const Header: React.FC<HeaderProps> = ({
               key={tf.value}
               className={`tv-btn tf-btn ${timeframe === tf.value ? 'active' : ''}`}
               onClick={() => onSelectTimeframe(tf.value)}
+              title={tf.title}
             >
               {tf.label}
             </button>
