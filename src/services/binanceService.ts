@@ -145,8 +145,83 @@ export async function fetchBinanceTickerList(): Promise<{ symbol: string; price:
   return cacheFetchPromise;
 }
 
+const COIN_DISPLAY_NAMES: Record<string, string> = {
+  ZEC: 'Zcash',
+  BTC: 'Bitcoin',
+  ETH: 'Ethereum',
+  SOL: 'Solana',
+  XRP: 'XRP',
+  ADA: 'Cardano',
+  DOGE: 'Dogecoin',
+  DOT: 'Polkadot',
+  AVAX: 'Avalanche',
+  LINK: 'Chainlink',
+  LTC: 'Litecoin',
+  XMR: 'Monero',
+  NEAR: 'NEAR Protocol',
+  INJ: 'Injective',
+  SUI: 'Sui',
+  APT: 'Aptos',
+};
+
+const CRYPTO_NAME_MAP: Record<string, string> = {
+  zcash: 'ZEC',
+  bitcoin: 'BTC',
+  ethereum: 'ETH',
+  ether: 'ETH',
+  solana: 'SOL',
+  ripple: 'XRP',
+  cardano: 'ADA',
+  dogecoin: 'DOGE',
+  doge: 'DOGE',
+  polkadot: 'DOT',
+  avalanche: 'AVAX',
+  chainlink: 'LINK',
+  polygon: 'POL',
+  matic: 'MATIC',
+  shibainu: 'SHIB',
+  shiba: 'SHIB',
+  litecoin: 'LTC',
+  monero: 'XMR',
+  stellar: 'XLM',
+  cosmos: 'ATOM',
+  near: 'NEAR',
+  injective: 'INJ',
+  sui: 'SUI',
+  aptos: 'APT',
+  render: 'RENDER',
+  pepe: 'PEPE',
+  tron: 'TRX',
+  toncoin: 'TON',
+  ton: 'TON',
+  binance: 'BNB',
+  bnb: 'BNB',
+  uniswap: 'UNI',
+  kaspa: 'KAS',
+  bittensor: 'TAO',
+  fetch: 'FET',
+  fantom: 'FTM',
+  sonic: 'S',
+  hedera: 'HBAR',
+  algorand: 'ALGO',
+  filecoin: 'FIL',
+  optimism: 'OP',
+  arbitrum: 'ARB',
+  vechain: 'VET',
+  aave: 'AAVE',
+  maker: 'MKR',
+  quant: 'QNT',
+  theta: 'THETA',
+  gala: 'GALA',
+  floki: 'FLOKI',
+  bonk: 'BONK',
+};
+
 export async function searchBinanceSymbols(query: string): Promise<BinanceSearchResult[]> {
-  const cleanQ = query.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  const rawQ = query.trim().toLowerCase();
+  const normalizedName = rawQ.replace(/[^a-z0-9]/g, '');
+  const aliasTicker = CRYPTO_NAME_MAP[normalizedName];
+  const cleanQ = (aliasTicker || query).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   if (!cleanQ) return [];
 
   const all = await fetchBinanceTickerList();
@@ -229,9 +304,10 @@ export async function searchBinanceSymbols(query: string): Promise<BinanceSearch
           ? 'FDUSD'
           : '';
 
+        const coinLabel = COIN_DISPLAY_NAMES[base] ? ` (${COIN_DISPLAY_NAMES[base]})` : '';
         return {
           symbol: m.symbol,
-          name: quote ? `${base} / ${quote}` : m.symbol,
+          name: quote ? `${base} / ${quote}${coinLabel}` : `${m.symbol}${coinLabel}`,
           price: stat ? parseFloat(stat.lastPrice) : m.price,
           change24h: stat ? parseFloat(stat.priceChangePercent) : 0,
           isCrypto: true,
